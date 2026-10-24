@@ -5,7 +5,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
-// 1. YOUR FIREBASE & NTFY CONFIGURATION
+// 1. CONFIGURATION
 // ==========================================
 const firebaseConfig = {
   apiKey: "AIzaSyC1ZLEw561UzT8OZnDk1-aL5hD9poflcaA",
@@ -16,15 +16,15 @@ const firebaseConfig = {
   appId: "1:142490478165:web:b621dd1921cb0e85bcd6dc"
 };
 
-// Your ntfy topic
-const NTFY_TOPIC = "alert-system4565";
+// Base topic namespace
+const BASE_TOPIC = "alert-system4565";
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ==========================================
-// 2. DIAGNOSTICS & LOGGING SYSTEM
+// 2. DIAGNOSTICS & LOGGING
 // ==========================================
 const debugList = document.getElementById("debugLogList");
 
@@ -33,40 +33,40 @@ function logSystem(msg, type = "info") {
   const entry = document.createElement("div");
   entry.className = `log-entry ${type}`;
   entry.textContent = `[${timestamp}] [${type.toUpperCase()}] ${msg}`;
-  if (debugList) {
-    debugList.prepend(entry);
-  }
+  if (debugList) debugList.prepend(entry);
   console.log(`[${type}]`, msg);
 }
 
-window.onerror = (message, source, lineno, colno) => {
-  logSystem(`${message} at line ${lineno}`, "error");
-};
-window.onunhandledrejection = (event) => {
-  logSystem(`Promise rejection: ${event.reason}`, "error");
-};
+window.onerror = (message, source, lineno) => logSystem(`${message} at line ${lineno}`, "error");
+window.onunhandledrejection = (event) => logSystem(`Promise rejection: ${event.reason}`, "error");
 
 // ==========================================
-// 3. ACCOUNT & PROFILE SYSTEM
+// 3. TARGETED INBOX & ACCOUNT SYSTEM
 // ==========================================
 let currentUser = localStorage.getItem("summon_user") || "Brother";
 const currentUserNameEl = document.getElementById("currentUserName");
 const profileModal = document.getElementById("profileModal");
 
+// Sends message to the OTHER person's inbox
+function getTargetTopic() {
+  return currentUser === "Brother" 
+    ? `${BASE_TOPIC}-sister` 
+    : `${BASE_TOPIC}-brother`;
+}
+
 function setUser(username) {
   currentUser = username;
   localStorage.setItem("summon_user", username);
   if (currentUserNameEl) {
-    currentUserNameEl.textContent = `${username} (${username === "Sister" ? "Upstairs" : "Downstairs"})`;
+    const listenTopic = username === "Sister" ? `${BASE_TOPIC}-sister` : `${BASE_TOPIC}-brother`;
+    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(Listening: ${listenTopic})</span>`;
   }
-  logSystem(`Active profile set to: ${username}`);
+  logSystem(`Active profile: ${username}. Sending alerts to: ${getTargetTopic()}`);
 }
 setUser(currentUser);
 
 const switchBtn = document.getElementById("switchUserBtn");
-if (switchBtn) {
-  switchBtn.onclick = () => profileModal.classList.remove("hidden");
-}
+if (switchBtn) switchBtn.onclick = () => profileModal.classList.remove("hidden");
 
 document.querySelectorAll(".profile-choice").forEach(btn => {
   btn.onclick = () => {
@@ -90,14 +90,13 @@ document.querySelectorAll(".tab").forEach(tab => {
 });
 
 // ==========================================
-// 5. SUMMON / NOTIFICATION LOGIC (ntfy)
+// 5. SUMMON / HIGH-PRIORITY NTFY LOGIC
 // ==========================================
 const alertInput = document.getElementById("alertInput");
 const sendAlertBtn = document.getElementById("sendAlertBtn");
 const alertStatus = document.getElementById("alertStatus");
 const alertPriority = document.getElementById("alertPriority");
 
-// Preset chips
 document.querySelectorAll(".chip").forEach(chip => {
   chip.onclick = () => {
     if (alertInput) alertInput.value = chip.dataset.msg;
@@ -105,26 +104,28 @@ document.querySelectorAll(".chip").forEach(chip => {
 });
 
 async function sendNtfyNotification(text, priority = "high") {
-  const priorityHeaderMap = {
-    "default": 3,
+  const priorityMap = {
+    "default": 4, // Upgraded to 4 so mobile phones don't delay it
     "high": 4,
     "urgent": 5
   };
+
+  const recipientTopic = getTargetTopic();
 
   try {
     const res = await fetch("https://ntfy.sh", {
       method: "POST",
       body: JSON.stringify({
-        topic: NTFY_TOPIC,
+        topic: recipientTopic,
         title: `Message from ${currentUser}!`,
         message: text,
-        priority: priorityHeaderMap[priority] || 4,
+        priority: priorityMap[priority] || 4,
         tags: ["loudspeaker", "bell"]
       })
     });
 
     if (!res.ok) throw new Error(`ntfy returned status ${res.status}`);
-    logSystem(`Notification sent via topic: ${NTFY_TOPIC}`);
+    logSystem(`High-priority ping dispatched to ${recipientTopic}`);
     return true;
   } catch (err) {
     logSystem(`ntfy send failed: ${err.message}`, "error");
@@ -141,7 +142,7 @@ if (sendAlertBtn) {
     }
 
     sendAlertBtn.disabled = true;
-    alertStatus.textContent = "Broadcasting alert...";
+    alertStatus.textContent = "Buzzing her phone...";
 
     const success = await sendNtfyNotification(text, alertPriority.value);
 
@@ -154,15 +155,15 @@ if (sendAlertBtn) {
         seenBy: [currentUser]
       });
     } catch (err) {
-      logSystem(`Failed to save alert to Firestore: ${err.message}`, "warn");
+      logSystem(`Firestore alert sync warning: ${err.message}`, "warn");
     }
 
     if (success) {
-      alertStatus.textContent = "✅ Alert buzzed her phone!";
+      alertStatus.textContent = "✅ Delivered to her room!";
       alertInput.value = "";
       setTimeout(() => { if (alertStatus) alertStatus.textContent = ""; }, 4000);
     } else {
-      alertStatus.textContent = "❌ Failed to send. Check debug tab.";
+      alertStatus.textContent = "❌ Failed to send. Check debug logs.";
     }
     sendAlertBtn.disabled = false;
   };
@@ -192,14 +193,14 @@ if (chatFileInput) {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 800;
+        const MAX_WIDTH = 700;
         const scaleSize = MAX_WIDTH / img.width;
         canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
         canvas.height = (img.width > MAX_WIDTH) ? (img.height * scaleSize) : img.height;
         
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        attachedImageData = canvas.toDataURL("image/jpeg", 0.7);
+        attachedImageData = canvas.toDataURL("image/jpeg", 0.65);
         imagePreview.src = attachedImageData;
         imagePreviewContainer.classList.remove("hidden");
       };
@@ -239,7 +240,7 @@ if (chatForm) {
         edited: false
       });
 
-      logSystem(`Message posted by ${currentUser}`);
+      // Send instant push to the other person
       sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default");
     } catch (err) {
       logSystem(`Chat send error: ${err.message}`, "error");
@@ -259,7 +260,6 @@ onSnapshot(messagesQuery, (snapshot) => {
     const id = docSnap.id;
     const isMe = data.sender === currentUser;
 
-    // Automatically mark message seen
     if (!data.seenBy || !data.seenBy.includes(currentUser)) {
       updateDoc(doc(db, "messages", id), {
         seenBy: arrayUnion(currentUser)
@@ -272,7 +272,6 @@ onSnapshot(messagesQuery, (snapshot) => {
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
 
-    // Actions (Reactions, Edit, Delete)
     const actions = document.createElement("div");
     actions.className = "msg-actions";
     actions.innerHTML = `
@@ -297,7 +296,6 @@ onSnapshot(messagesQuery, (snapshot) => {
       bubble.appendChild(txt);
     }
 
-    // Metadata
     const meta = document.createElement("div");
     meta.className = "msg-meta";
     const timeStr = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now";
@@ -312,7 +310,6 @@ onSnapshot(messagesQuery, (snapshot) => {
     bubble.appendChild(meta);
     wrapper.appendChild(bubble);
 
-    // Reactions Pill
     if (data.reactions && Object.keys(data.reactions).length > 0) {
       const reactBar = document.createElement("div");
       reactBar.className = "reactions-bar";
@@ -327,7 +324,6 @@ onSnapshot(messagesQuery, (snapshot) => {
       wrapper.appendChild(reactBar);
     }
 
-    // Handle reaction clicks
     actions.querySelectorAll("[data-react]").forEach(btn => {
       btn.onclick = async () => {
         const emoji = btn.dataset.react;
@@ -344,18 +340,15 @@ onSnapshot(messagesQuery, (snapshot) => {
       };
     });
 
-    // Handle Delete
     const delBtn = actions.querySelector(".del-btn");
     if (delBtn) {
       delBtn.onclick = async () => {
         if (confirm("Delete this message?")) {
           await deleteDoc(doc(db, "messages", id));
-          logSystem(`Deleted message ${id}`);
         }
       };
     }
 
-    // Handle Edit
     const editBtn = actions.querySelector(".edit-btn");
     if (editBtn) {
       editBtn.onclick = () => openEditModal(id, data.text);
@@ -398,7 +391,6 @@ if (saveEditBtn) {
         text: newText,
         edited: true
       });
-      logSystem(`Updated message ${currentEditId}`);
     } catch (err) {
       logSystem(`Failed to edit message: ${err.message}`, "error");
     }
