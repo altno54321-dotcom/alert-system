@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Summon & Chat</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#4f46e5" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+</head>
+<body>
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="user-badge" id="currentUserBadge">
+      <span class="status-dot"></span>
+      <span id="currentUserName">Loading...</span>
+    </div>
+    <div class="header-actions">
+      <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="tab active" data-tab="alertTab">⚡ Summon</button>
+    <button class="tab" data-tab="chatTab">💬 Chat</button>
+    <button class="tab" data-tab="debugTab">🐞 Debug</button>
+  </nav>
+
+  <!-- MAIN TAB: SUMMON / INSTANT ALERT -->
+  <main id="alertTab" class="view-panel active">
+    <section class="card hero-card">
+      <h2>Summon Downstairs</h2>
+      <p class="subtitle">Broadcasts an instant loud notification to her phone via ntfy.</p>
+
+      <div class="preset-chips">
+        <button class="chip" data-msg="Dinner is ready! Come downstairs 🍲">🍲 Dinner</button>
+        <button class="chip" data-msg="Package arrived for you downstairs 📦">📦 Package</button>
+        <button class="chip" data-msg="Need you downstairs right now! 🏃‍♀️">🏃 Urgent</button>
+        <button class="chip" data-msg="Family movie / snacks time! 🍿">🍿 Movie</button>
+      </div>
+
+      <div class="form-group">
+        <label for="alertInput">Custom Message</label>
+        <textarea id="alertInput" rows="3" placeholder="e.g. Come downstairs, dinner is served!"></textarea>
+      </div>
+
+      <div class="priority-selector">
+        <label>Urgency Level:</label>
+        <select id="alertPriority">
+          <option value="default">Normal (Buzz)</option>
+          <option value="high" selected>High (Loud)</option>
+          <option value="urgent">Max Urgent (Emergency sound)</option>
+        </select>
+      </div>
+
+      <button id="sendAlertBtn" class="primary-btn">
+        <span>Send Instant Alert</span> 🚀
+      </button>
+
+      <div id="alertStatus" class="status-msg"></div>
+    </section>
+  </main>
+
+  <!-- CHAT TAB: WHATSAPP-LIKE MESSAGING -->
+  <section id="chatTab" class="view-panel">
+    <div class="chat-container">
+      <div class="messages-list" id="messagesList">
+        <div class="chat-placeholder">Loading messages...</div>
+      </div>
+
+      <!-- Image Preview Container -->
+      <div id="imagePreviewContainer" class="preview-bar hidden">
+        <img id="imagePreview" src="" alt="preview" />
+        <button id="cancelImageBtn" class="close-btn">&times;</button>
+      </div>
+
+      <!-- Chat Input Area -->
+      <form id="chatForm" class="chat-input-bar">
+        <label for="chatFileInput" class="icon-btn" title="Attach Photo">
+          📷
+          <input type="file" id="chatFileInput" accept="image/*" hidden />
+        </label>
+        <textarea id="chatTextInput" rows="1" placeholder="Type a message..."></textarea>
+        <button type="submit" class="send-btn" title="Send">➤</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- DEBUG TAB -->
+  <section id="debugTab" class="view-panel">
+    <div class="card debug-card">
+      <div class="debug-header">
+        <h3>System Diagnostics & Error Logs</h3>
+        <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
+      </div>
+      <div id="debugLogList" class="debug-list">
+        <!-- Logs render here -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Profile Switcher Modal -->
+  <div id="profileModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Select Your Identity</h3>
+      <p>Who is currently using this device?</p>
+      <div class="profile-options">
+        <button class="profile-choice" data-user="Brother">Brother (Downstairs)</button>
+        <button class="profile-choice" data-user="Sister">Sister (Upstairs Room)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Message Modal -->
+  <div id="editModal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Edit Message</h3>
+      <textarea id="editTextarea" rows="3"></textarea>
+      <div class="modal-actions">
+        <button id="cancelEditBtn" class="pill-btn secondary">Cancel</button>
+        <button id="saveEditBtn" class="pill-btn primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(console.error);
+    }
+  </script>
+</body>
+</html>
