@@ -106,20 +106,21 @@ document.querySelectorAll(".chip").forEach(chip => {
 
 async function sendNtfyNotification(text, priority = "high") {
   const priorityHeaderMap = {
-    "default": "3",
-    "high": "4",
-    "urgent": "5"
+    "default": 3,
+    "high": 4,
+    "urgent": 5
   };
 
   try {
-    const res = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+    const res = await fetch("https://ntfy.sh", {
       method: "POST",
-      body: text,
-      headers: {
-        "Title": `🚨 Message from ${currentUser}!`,
-        "Priority": priorityHeaderMap[priority] || "4",
-        "Tags": "loudspeaker,bell"
-      }
+      body: JSON.stringify({
+        topic: NTFY_TOPIC,
+        title: `Message from ${currentUser}!`,
+        message: text,
+        priority: priorityHeaderMap[priority] || 4,
+        tags: ["loudspeaker", "bell"]
+      })
     });
 
     if (!res.ok) throw new Error(`ntfy returned status ${res.status}`);
