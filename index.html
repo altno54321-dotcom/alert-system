@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
@@ -16,7 +16,8 @@
       <span class="status-dot"></span>
       <span id="currentUserName">Loading...</span>
     </div>
-    <div class="header-actions">
+    <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
+      <span style="font-size: 0.72rem; color: #64748b; font-weight: 700; background: #e2e8f0; padding: 3px 8px; border-radius: 10px;">v1.00</span>
       <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
     </div>
   </header>
@@ -47,7 +48,7 @@
       </div>
 
       <div class="priority-selector">
-        <label>Urgency Level:</label>
+        <label for="alertPriority">Urgency Level:</label>
         <select id="alertPriority">
           <option value="default">Normal (Buzz)</option>
           <option value="high" selected>High (Loud)</option>
@@ -67,13 +68,13 @@
   <section id="chatTab" class="view-panel">
     <div class="chat-container">
       <div class="messages-list" id="messagesList">
-        <div class="chat-placeholder">Loading messages...</div>
+        <div class="chat-placeholder" style="text-align: center; color: #94a3b8; margin-top: 20px; font-size: 0.9rem;">Loading messages...</div>
       </div>
 
       <!-- Image Preview Container -->
       <div id="imagePreviewContainer" class="preview-bar hidden">
         <img id="imagePreview" src="" alt="preview" />
-        <button id="cancelImageBtn" class="close-btn">&times;</button>
+        <button id="cancelImageBtn" class="pill-btn danger" style="padding: 2px 8px; font-size: 0.75rem;">Remove</button>
       </div>
 
       <!-- Chat Input Area -->
@@ -91,12 +92,12 @@
   <!-- DEBUG TAB -->
   <section id="debugTab" class="view-panel">
     <div class="card debug-card">
-      <div class="debug-header">
-        <h3>System Diagnostics & Error Logs</h3>
+      <div class="debug-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="font-size: 1rem;">Diagnostics & Error Logs</h3>
         <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
       </div>
       <div id="debugLogList" class="debug-list">
-        <!-- Logs render here -->
+        <!-- System events and errors render here -->
       </div>
     </div>
   </section>
@@ -105,7 +106,7 @@
   <div id="profileModal" class="modal hidden">
     <div class="modal-card">
       <h3>Select Your Identity</h3>
-      <p>Who is currently using this device?</p>
+      <p style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">Who is using this device right now?</p>
       <div class="profile-options">
         <button class="profile-choice" data-user="Brother">Brother (Downstairs)</button>
         <button class="profile-choice" data-user="Sister">Sister (Upstairs Room)</button>
@@ -117,10 +118,10 @@
   <div id="editModal" class="modal hidden">
     <div class="modal-card">
       <h3>Edit Message</h3>
-      <textarea id="editTextarea" rows="3"></textarea>
-      <div class="modal-actions">
+      <textarea id="editTextarea" rows="3" style="margin-top: 10px;"></textarea>
+      <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
         <button id="cancelEditBtn" class="pill-btn secondary">Cancel</button>
-        <button id="saveEditBtn" class="pill-btn primary">Save Changes</button>
+        <button id="saveEditBtn" class="pill-btn" style="background: #4f46e5; color: white;">Save Changes</button>
       </div>
     </div>
   </div>
