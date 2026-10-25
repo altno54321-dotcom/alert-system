@@ -1,4 +1,4 @@
-const CACHE_NAME = "summon-pwa-v1.10";
+const CACHE_NAME = "summon-pwa-v1.20";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -8,15 +8,13 @@ const ASSETS_TO_CACHE = [
   "./icon.svg"
 ];
 
-// 1. Install & cache initial shell
 self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
   );
-  self.skipWaiting(); // Force active immediately
+  self.skipWaiting();
 });
 
-// 2. Clean up old version caches automatically
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
@@ -32,9 +30,8 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-// 3. NETWORK-FIRST STRATEGY (Prevents stale cache lockup)
+// Network-First strategy
 self.addEventListener("fetch", (e) => {
-  // Let Firebase and ntfy requests pass directly through
   if (e.request.url.includes("firestore") || e.request.url.includes("ntfy.sh")) {
     return;
   }
@@ -42,7 +39,6 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     fetch(e.request)
       .then((networkResponse) => {
-        // If network fetch succeeds, update the local cache in the background
         if (networkResponse && networkResponse.status === 200 && e.request.method === "GET") {
           const responseClone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
@@ -52,7 +48,6 @@ self.addEventListener("fetch", (e) => {
         return networkResponse;
       })
       .catch(() => {
-        // If offline / no internet, fall back to the cached copy
         return caches.match(e.request);
       })
   );
