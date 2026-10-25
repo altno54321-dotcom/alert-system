@@ -1,4 +1,4 @@
-const CACHE_NAME = "summon-pwa-v1.30";
+const CACHE_NAME = "summon-pwa-v1.40";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -30,7 +30,6 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-// Network-First strategy
 self.addEventListener("fetch", (e) => {
   if (e.request.url.includes("firestore") || e.request.url.includes("ntfy.sh")) {
     return;
