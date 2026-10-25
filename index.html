@@ -6,7 +6,7 @@
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <link rel="stylesheet" href="style.css?v=1.20" />
+  <link rel="stylesheet" href="style.css?v=1.30" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
@@ -17,9 +17,8 @@
       <span id="currentUserName">Loading...</span>
     </div>
     <div class="header-actions" style="display: flex; align-items: center; gap: 6px;">
-      <!-- Tap to update -->
       <button id="forceUpdateBtn" title="Tap to check for updates" style="font-size: 0.72rem; color: #4f46e5; font-weight: 700; background: #e0e7ff; padding: 4px 8px; border-radius: 10px; border: 1px solid #c7d2fe; cursor: pointer;">
-        v1.20 ⟳
+        v1.30 ⟳
       </button>
       <button id="switchUserBtn" class="pill-btn secondary">Switch</button>
     </div>
@@ -92,19 +91,27 @@
     </div>
   </section>
 
-  <!-- DEBUG TAB -->
+  <!-- DEBUG & BUG CHECK TAB -->
   <section id="debugTab" class="view-panel">
     <div class="card debug-card">
-      <div class="debug-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3 style="font-size: 1rem;">Diagnostics & Controls</h3>
+      <div class="debug-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h3 style="font-size: 1rem;">System Diagnostics</h3>
         <div style="display: flex; gap: 6px;">
           <button id="wipeAppCacheBtn" class="pill-btn" style="background: #e0e7ff; color: #4338ca;">Force Refresh</button>
           <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
         </div>
       </div>
-      <div id="debugLogList" class="debug-list">
-        <!-- System events and errors render here -->
-      </div>
+
+      <!-- Automated One-Click Bug Checker -->
+      <button id="runBugCheckBtn" class="primary-btn" style="margin-bottom: 12px; padding: 10px 14px; background: #059669; font-size: 0.88rem;">
+        🧪 Run Automated Bug Check
+      </button>
+
+      <!-- Results of the Automated Test -->
+      <div id="bugCheckResults" class="test-results-panel hidden"></div>
+
+      <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin: 8px 0 4px 0;">CONSOLE LOGS:</div>
+      <div id="debugLogList" class="debug-list"></div>
     </div>
   </section>
 
@@ -132,6 +139,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.20"></script>
+  <script type="module" src="app.js?v=1.30"></script>
 </body>
 </html>
