@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
-  getFirestore, collection, addDoc, query, orderBy, onSnapshot, 
-  serverTimestamp, doc, updateDoc, deleteDoc, arrayUnion 
+  getFirestore, collection, addDoc, query, orderBy, limitToLast, onSnapshot, 
+  doc, updateDoc, deleteDoc, arrayUnion 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
@@ -39,11 +39,10 @@ window.onerror = (message, source, lineno) => logSystem(`${message} at line ${li
 window.onunhandledrejection = (event) => logSystem(`Promise rejection: ${event.reason}`, "error");
 
 // ==========================================
-// 3. AUTO-UPDATE & SAFE CACHE-BUSTER
-// (Clears ONLY this app's storage; never touches her phone's other data)
+// 3. AUTO-UPDATE & CACHE BUSTER
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging app cache and checking server...", "warn");
+  logSystem("Purging cache for v1.20...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -54,7 +53,6 @@ async function cleanAppCacheAndReload() {
       await registration.unregister();
     }
   }
-  // Hard reload bypassing browser cache
   window.location.href = window.location.pathname + '?nocache=' + Date.now();
 }
 
@@ -64,16 +62,14 @@ if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
 const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
-// Register Service Worker with active update check
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.10').then((reg) => {
-    reg.update(); // Ask server if a newer sw.js exists
-
+  navigator.serviceWorker.register('./sw.js?v=1.20').then((reg) => {
+    reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("New update found! Reloading automatically...", "info");
+          logSystem("Update v1.20 installed! Refreshing...", "info");
           setTimeout(() => window.location.reload(), 1000);
         }
       };
@@ -82,7 +78,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==========================================
-// 4. TARGETED INBOX & ACCOUNT SYSTEM
+// 4. INBOX & IDENTITY
 // ==========================================
 let currentUser = localStorage.getItem("summon_user") || "Brother";
 const currentUserNameEl = document.getElementById("currentUserName");
@@ -101,7 +97,7 @@ function setUser(username) {
     const listenTopic = username === "Sister" ? `${BASE_TOPIC}-sister` : `${BASE_TOPIC}-brother`;
     currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
   }
-  logSystem(`Profile: ${username}. Target topic: ${getTargetTopic()}`);
+  logSystem(`Profile: ${username} | Recipient: ${getTargetTopic()}`);
 }
 setUser(currentUser);
 
@@ -116,7 +112,7 @@ document.querySelectorAll(".profile-choice").forEach(btn => {
 });
 
 // ==========================================
-// 5. TAB NAVIGATION
+// 5. TABS
 // ==========================================
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
@@ -130,7 +126,7 @@ document.querySelectorAll(".tab").forEach(tab => {
 });
 
 // ==========================================
-// 6. SUMMON / HIGH-PRIORITY NTFY
+// 6. SUMMON & NTFY NOTIFICATIONS
 // ==========================================
 const alertInput = document.getElementById("alertInput");
 const sendAlertBtn = document.getElementById("sendAlertBtn");
@@ -144,12 +140,7 @@ document.querySelectorAll(".chip").forEach(chip => {
 });
 
 async function sendNtfyNotification(text, priority = "high") {
-  const priorityMap = {
-    "default": 4,
-    "high": 4,
-    "urgent": 5
-  };
-
+  const priorityMap = { "default": 4, "high": 4, "urgent": 5 };
   const recipientTopic = getTargetTopic();
 
   try {
@@ -163,12 +154,11 @@ async function sendNtfyNotification(text, priority = "high") {
         tags: ["loudspeaker", "bell"]
       })
     });
-
     if (!res.ok) throw new Error(`ntfy status ${res.status}`);
-    logSystem(`Notification sent to: ${recipientTopic}`);
+    logSystem(`Notif pushed to ${recipientTopic}`);
     return true;
   } catch (err) {
-    logSystem(`ntfy send failed: ${err.message}`, "error");
+    logSystem(`ntfy error: ${err.message}`, "error");
     return false;
   }
 }
@@ -182,35 +172,36 @@ if (sendAlertBtn) {
     }
 
     sendAlertBtn.disabled = true;
-    alertStatus.textContent = "Broadcasting alert...";
+    alertStatus.textContent = "Buzzing her phone...";
 
-    const success = await sendNtfyNotification(text, alertPriority.value);
+    // 1. Optimistically display immediately in chat
+    renderOptimisticMessage(`⚡ SUMMON: ${text}`, null);
 
+    // 2. Dispatch notification in background
+    sendNtfyNotification(text, alertPriority.value);
+
+    // 3. Save to database with exact instant timestamp
     try {
       await addDoc(collection(db, "messages"), {
         sender: currentUser,
         text: `⚡ SUMMON: ${text}`,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
         reactions: {},
         seenBy: [currentUser]
       });
-    } catch (err) {
-      logSystem(`Firestore alert sync error: ${err.message}`, "warn");
-    }
-
-    if (success) {
-      alertStatus.textContent = "✅ Sent to her phone!";
+      alertStatus.textContent = "✅ Delivered to her room!";
       alertInput.value = "";
       setTimeout(() => { if (alertStatus) alertStatus.textContent = ""; }, 4000);
-    } else {
-      alertStatus.textContent = "❌ Failed to send. Check debug tab.";
+    } catch (err) {
+      logSystem(`Firestore alert sync error: ${err.message}`, "warn");
+      alertStatus.textContent = "❌ Network error. Check debug logs.";
     }
     sendAlertBtn.disabled = false;
   };
 }
 
 // ==========================================
-// 7. MESSAGING & CHAT SYSTEM
+// 7. REAL-TIME INSTANT CHAT ENGINE
 // ==========================================
 const messagesList = document.getElementById("messagesList");
 const chatForm = document.getElementById("chatForm");
@@ -221,6 +212,42 @@ const imagePreview = document.getElementById("imagePreview");
 const cancelImageBtn = document.getElementById("cancelImageBtn");
 
 let attachedImageData = null;
+const markedSeenCache = new Set(); // Prevents repeated Firebase write storms
+
+// Instant Optimistic Bubble (0ms UI latency)
+function renderOptimisticMessage(text, image) {
+  const placeholder = messagesList.querySelector(".chat-placeholder");
+  if (placeholder) placeholder.remove();
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "msg-wrapper me optimistic-msg";
+  wrapper.style.opacity = "0.75";
+
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble";
+
+  if (image) {
+    const img = document.createElement("img");
+    img.src = image;
+    img.className = "msg-img";
+    bubble.appendChild(img);
+  }
+
+  if (text) {
+    const p = document.createElement("p");
+    p.textContent = text;
+    bubble.appendChild(p);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "msg-meta";
+  meta.textContent = "Just now • Sending ⌛";
+  bubble.appendChild(meta);
+
+  wrapper.appendChild(bubble);
+  messagesList.appendChild(wrapper);
+  messagesList.scrollTop = messagesList.scrollHeight;
+}
 
 if (chatFileInput) {
   chatFileInput.onchange = (e) => {
@@ -233,14 +260,14 @@ if (chatFileInput) {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 700;
+        const MAX_WIDTH = 600;
         const scaleSize = MAX_WIDTH / img.width;
         canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
         canvas.height = (img.width > MAX_WIDTH) ? (img.height * scaleSize) : img.height;
         
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        attachedImageData = canvas.toDataURL("image/jpeg", 0.65);
+        attachedImageData = canvas.toDataURL("image/jpeg", 0.6);
         imagePreview.src = attachedImageData;
         imagePreviewContainer.classList.remove("hidden");
       };
@@ -258,6 +285,7 @@ if (cancelImageBtn) {
   };
 }
 
+// Send Message Flow
 if (chatForm) {
   chatForm.onsubmit = async (e) => {
     e.preventDefault();
@@ -266,29 +294,39 @@ if (chatForm) {
 
     if (!text && !image) return;
 
+    // Reset inputs immediately
     chatTextInput.value = "";
     if (cancelImageBtn) cancelImageBtn.click();
 
+    // 1. RENDER INSTANTLY (0ms latency for sender)
+    renderOptimisticMessage(text, image);
+
+    // 2. Fire ntfy in background
+    sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default");
+
+    // 3. Write to Firestore with local Date.now() timestamp (avoids serverTimestamp delay)
     try {
       await addDoc(collection(db, "messages"), {
         sender: currentUser,
         text: text || "",
         imageUrl: image || null,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
         reactions: {},
         seenBy: [currentUser],
         edited: false
       });
-
-      sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default");
     } catch (err) {
       logSystem(`Chat send error: ${err.message}`, "error");
     }
   };
 }
 
-// Real-time Firestore Listener
-const messagesQuery = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+// Limit query to last 50 messages so the app loads lightning fast
+const messagesQuery = query(
+  collection(db, "messages"), 
+  orderBy("timestamp", "asc"), 
+  limitToLast(50)
+);
 
 onSnapshot(messagesQuery, (snapshot) => {
   if (!messagesList) return;
@@ -299,10 +337,14 @@ onSnapshot(messagesQuery, (snapshot) => {
     const id = docSnap.id;
     const isMe = data.sender === currentUser;
 
-    if (!data.seenBy || !data.seenBy.includes(currentUser)) {
-      updateDoc(doc(db, "messages", id), {
-        seenBy: arrayUnion(currentUser)
-      }).catch(() => {});
+    // Mark as seen ONLY ONCE per session to stop the infinite Firebase loop storm
+    if (!isMe && (!data.seenBy || !data.seenBy.includes(currentUser))) {
+      if (!markedSeenCache.has(id)) {
+        markedSeenCache.add(id);
+        updateDoc(doc(db, "messages", id), {
+          seenBy: arrayUnion(currentUser)
+        }).catch(() => {});
+      }
     }
 
     const wrapper = document.createElement("div");
@@ -335,20 +377,26 @@ onSnapshot(messagesQuery, (snapshot) => {
       bubble.appendChild(txt);
     }
 
-    const meta = document.createElement("div");
-    meta.className = "msg-meta";
-    const timeStr = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Just now";
-    
+    // Parse timestamp (supports both raw ms numbers and older Firestore Timestamps)
+    let timeStr = "Just now";
+    if (data.timestamp) {
+      const rawDate = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+      timeStr = rawDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
     let seenIndicator = "";
     if (isMe) {
       const isSeenByOther = data.seenBy && data.seenBy.some(u => u !== currentUser);
       seenIndicator = isSeenByOther ? " • Seen ✓✓" : " • Sent ✓";
     }
 
+    const meta = document.createElement("div");
+    meta.className = "msg-meta";
     meta.textContent = `${timeStr}${data.edited ? " (edited)" : ""}${seenIndicator}`;
     bubble.appendChild(meta);
     wrapper.appendChild(bubble);
 
+    // Reactions
     if (data.reactions && Object.keys(data.reactions).length > 0) {
       const reactBar = document.createElement("div");
       reactBar.className = "reactions-bar";
@@ -398,7 +446,7 @@ onSnapshot(messagesQuery, (snapshot) => {
 
   messagesList.scrollTop = messagesList.scrollHeight;
 }, (err) => {
-  logSystem(`Firestore Listen Error: ${err.message}`, "error");
+  logSystem(`Firestore Error: ${err.message}`, "error");
 });
 
 // Edit Modal Handling
@@ -432,7 +480,7 @@ if (saveEditBtn) {
       });
       logSystem(`Updated message ${currentEditId}`);
     } catch (err) {
-      logSystem(`Failed to edit message: ${err.message}`, "error");
+      logSystem(`Failed to edit: ${err.message}`, "error");
     }
     editModal.classList.add("hidden");
   };
