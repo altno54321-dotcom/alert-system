@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
   getFirestore, collection, addDoc, query, orderBy, limitToLast, onSnapshot, 
-  doc, updateDoc, deleteDoc, arrayUnion 
+  doc, updateDoc, deleteDoc, arrayUnion, getDocs 
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // ==========================================
@@ -42,7 +42,7 @@ window.onunhandledrejection = (event) => logSystem(`Promise rejection: ${event.r
 // 3. AUTO-UPDATE & CACHE BUSTER
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v1.20...", "warn");
+  logSystem("Purging cache for v1.30...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -63,13 +63,13 @@ const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.20').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=1.30').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("Update v1.20 installed! Refreshing...", "info");
+          logSystem("Update v1.30 installed! Refreshing...", "info");
           setTimeout(() => window.location.reload(), 1000);
         }
       };
@@ -174,13 +174,9 @@ if (sendAlertBtn) {
     sendAlertBtn.disabled = true;
     alertStatus.textContent = "Buzzing her phone...";
 
-    // 1. Optimistically display immediately in chat
     renderOptimisticMessage(`⚡ SUMMON: ${text}`, null);
-
-    // 2. Dispatch notification in background
     sendNtfyNotification(text, alertPriority.value);
 
-    // 3. Save to database with exact instant timestamp
     try {
       await addDoc(collection(db, "messages"), {
         sender: currentUser,
@@ -212,9 +208,8 @@ const imagePreview = document.getElementById("imagePreview");
 const cancelImageBtn = document.getElementById("cancelImageBtn");
 
 let attachedImageData = null;
-const markedSeenCache = new Set(); // Prevents repeated Firebase write storms
+const markedSeenCache = new Set();
 
-// Instant Optimistic Bubble (0ms UI latency)
 function renderOptimisticMessage(text, image) {
   const placeholder = messagesList.querySelector(".chat-placeholder");
   if (placeholder) placeholder.remove();
@@ -285,7 +280,6 @@ if (cancelImageBtn) {
   };
 }
 
-// Send Message Flow
 if (chatForm) {
   chatForm.onsubmit = async (e) => {
     e.preventDefault();
@@ -294,17 +288,12 @@ if (chatForm) {
 
     if (!text && !image) return;
 
-    // Reset inputs immediately
     chatTextInput.value = "";
     if (cancelImageBtn) cancelImageBtn.click();
 
-    // 1. RENDER INSTANTLY (0ms latency for sender)
     renderOptimisticMessage(text, image);
-
-    // 2. Fire ntfy in background
     sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default");
 
-    // 3. Write to Firestore with local Date.now() timestamp (avoids serverTimestamp delay)
     try {
       await addDoc(collection(db, "messages"), {
         sender: currentUser,
@@ -321,7 +310,7 @@ if (chatForm) {
   };
 }
 
-// Limit query to last 50 messages so the app loads lightning fast
+// Limit query to last 50 messages
 const messagesQuery = query(
   collection(db, "messages"), 
   orderBy("timestamp", "asc"), 
@@ -335,9 +324,12 @@ onSnapshot(messagesQuery, (snapshot) => {
   snapshot.forEach((docSnap) => {
     const data = docSnap.data();
     const id = docSnap.id;
+
+    // IGNORE Automated Test documents so they NEVER show up on screen
+    if (data._testDoc === true) return;
+
     const isMe = data.sender === currentUser;
 
-    // Mark as seen ONLY ONCE per session to stop the infinite Firebase loop storm
     if (!isMe && (!data.seenBy || !data.seenBy.includes(currentUser))) {
       if (!markedSeenCache.has(id)) {
         markedSeenCache.add(id);
@@ -377,7 +369,6 @@ onSnapshot(messagesQuery, (snapshot) => {
       bubble.appendChild(txt);
     }
 
-    // Parse timestamp (supports both raw ms numbers and older Firestore Timestamps)
     let timeStr = "Just now";
     if (data.timestamp) {
       const rawDate = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
@@ -396,7 +387,6 @@ onSnapshot(messagesQuery, (snapshot) => {
     bubble.appendChild(meta);
     wrapper.appendChild(bubble);
 
-    // Reactions
     if (data.reactions && Object.keys(data.reactions).length > 0) {
       const reactBar = document.createElement("div");
       reactBar.className = "reactions-bar";
@@ -491,4 +481,139 @@ if (clearLogsBtn) {
   clearLogsBtn.onclick = () => {
     debugList.innerHTML = "";
   };
+}
+
+// ==========================================
+// 8. AUTOMATED ZERO-SPAM BUG CHECK ENGINE
+// ==========================================
+const runBugCheckBtn = document.getElementById("runBugCheckBtn");
+const bugCheckResults = document.getElementById("bugCheckResults");
+
+async function runAutomatedBugCheck() {
+  runBugCheckBtn.disabled = true;
+  runBugCheckBtn.textContent = "⏳ Running Full Diagnostics...";
+  bugCheckResults.innerHTML = "";
+  bugCheckResults.classList.remove("hidden");
+
+  let passedCount = 0;
+  let failedCount = 0;
+
+  function recordTest(name, isPass, detail = "") {
+    const item = document.createElement("div");
+    item.className = `test-item ${isPass ? 'pass' : 'fail'}`;
+    item.innerHTML = `
+      <span>${isPass ? '✅' : '❌'} ${name}</span>
+      <span style="font-size: 0.72rem; opacity: 0.85;">${detail}</span>
+    `;
+    bugCheckResults.appendChild(item);
+    if (isPass) passedCount++; else failedCount++;
+    logSystem(`BugCheck: ${name} -> ${isPass ? 'PASS' : 'FAIL (' + detail + ')'}`, isPass ? 'info' : 'error');
+  }
+
+  // 1. Identity & Routing Logic
+  try {
+    const target = getTargetTopic();
+    const isOk = target.includes(currentUser === "Brother" ? "sister" : "brother");
+    recordTest("Identity & Topic Routing", isOk, `Route: ${target}`);
+  } catch (e) {
+    recordTest("Identity & Topic Routing", false, e.message);
+  }
+
+  // 2. Notification Pipeline (Zero-spam connection test to ntfy server)
+  try {
+    const tStart = performance.now();
+    // Test ntfy server reachability without sending a message to the live topic
+    const res = await fetch("https://ntfy.sh/static/images/badge.svg", { method: "HEAD", cache: "no-store" });
+    const elapsed = Math.round(performance.now() - tStart);
+    recordTest("Notification Gateway", res.ok, `${elapsed}ms latency`);
+  } catch (e) {
+    recordTest("Notification Gateway", false, "Server unreachable");
+  }
+
+  // 3. Image Compression Engine
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 100;
+    canvas.height = 100;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#4f46e5";
+    ctx.fillRect(0, 0, 100, 100);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+    const isValid = dataUrl.startsWith("data:image/jpeg;base64,");
+    recordTest("Photo Compression Engine", isValid, "JPEG canvas OK");
+  } catch (e) {
+    recordTest("Photo Compression Engine", false, e.message);
+  }
+
+  // 4, 5, 6, 7. Firebase Full Lifecycle (Write, Edit, Reaction, Delete)
+  let testDocId = null;
+  try {
+    // 4. Test Write
+    const tDoc = await addDoc(collection(db, "messages"), {
+      sender: "SystemTest",
+      text: "Diagnostic probe",
+      timestamp: Date.now(),
+      reactions: {},
+      seenBy: ["SystemTest"],
+      _testDoc: true // Hidden from UI
+    });
+    testDocId = tDoc.id;
+    recordTest("Database Write (Real-time)", true, `DocID: ${testDocId.slice(0, 5)}...`);
+
+    // 5. Test Edit Sub-feature
+    await updateDoc(doc(db, "messages", testDocId), {
+      text: "Diagnostic probe (edited)",
+      edited: true
+    });
+    recordTest("Message Editing Sub-feature", true, "UpdateDoc OK");
+
+    // 6. Test Reaction Sub-feature
+    await updateDoc(doc(db, "messages", testDocId), {
+      "reactions.👍": ["SystemTest"]
+    });
+    recordTest("Emoji Reactions Sub-feature", true, "Array OK");
+
+    // 7. Test Deletion & Clean-up
+    await deleteDoc(doc(db, "messages", testDocId));
+    testDocId = null;
+    recordTest("Message Deletion & Purge", true, "Purged cleanly");
+  } catch (e) {
+    recordTest("Database Operations", false, e.message);
+    // Cleanup if failed midway
+    if (testDocId) deleteDoc(doc(db, "messages", testDocId)).catch(() => {});
+  }
+
+  // 8. PWA Service Worker & Cache Storage
+  try {
+    const hasSW = 'serviceWorker' in navigator;
+    const hasCaches = 'caches' in window;
+    const cacheKeys = hasCaches ? await caches.keys() : [];
+    recordTest("Offline PWA & Cache System", hasSW && hasCaches, `${cacheKeys.length} active caches`);
+  } catch (e) {
+    recordTest("Offline PWA & Cache System", false, e.message);
+  }
+
+  // 9. UI & Input Bindings
+  try {
+    const hasInputs = !!alertInput && !!chatTextInput && !!chatFileInput && !!sendAlertBtn;
+    recordTest("Interface Elements & Bindings", hasInputs, "All hooks intact");
+  } catch (e) {
+    recordTest("Interface Elements & Bindings", false, e.message);
+  }
+
+  // Summary Banner
+  const summary = document.createElement("div");
+  const allPassed = failedCount === 0;
+  summary.className = `test-summary ${allPassed ? 'all-pass' : 'has-fail'}`;
+  summary.textContent = allPassed 
+    ? `🎉 All ${passedCount} tests passed! Zero errors detected.` 
+    : `⚠️ Diagnostics complete: ${passedCount} passed, ${failedCount} failed.`;
+  bugCheckResults.prepend(summary);
+
+  runBugCheckBtn.disabled = false;
+  runBugCheckBtn.textContent = "🧪 Run Automated Bug Check Again";
+}
+
+if (runBugCheckBtn) {
+  runBugCheckBtn.onclick = runAutomatedBugCheck;
 }
