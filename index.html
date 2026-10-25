@@ -6,7 +6,7 @@
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <link rel="stylesheet" href="style.css?v=1.30" />
+  <link rel="stylesheet" href="style.css?v=1.40" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
@@ -18,7 +18,7 @@
     </div>
     <div class="header-actions" style="display: flex; align-items: center; gap: 6px;">
       <button id="forceUpdateBtn" title="Tap to check for updates" style="font-size: 0.72rem; color: #4f46e5; font-weight: 700; background: #e0e7ff; padding: 4px 8px; border-radius: 10px; border: 1px solid #c7d2fe; cursor: pointer;">
-        v1.30 ⟳
+        v1.40 ⟳
       </button>
       <button id="switchUserBtn" class="pill-btn secondary">Switch</button>
     </div>
@@ -102,15 +102,15 @@
         </div>
       </div>
 
-      <!-- Automated One-Click Bug Checker -->
+      <!-- Full-Feature Diagnostic Trigger -->
       <button id="runBugCheckBtn" class="primary-btn" style="margin-bottom: 12px; padding: 10px 14px; background: #059669; font-size: 0.88rem;">
-        🧪 Run Automated Bug Check
+        🧪 Run Full-Feature Test Mode
       </button>
 
-      <!-- Results of the Automated Test -->
+      <!-- Results Panel -->
       <div id="bugCheckResults" class="test-results-panel hidden"></div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin: 8px 0 4px 0;">CONSOLE LOGS:</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin: 8px 0 4px 0;">LIVE ACTIVITY LOGS:</div>
       <div id="debugLogList" class="debug-list"></div>
     </div>
   </section>
@@ -139,6 +139,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.30"></script>
+  <script type="module" src="app.js?v=1.40"></script>
 </body>
 </html>
