@@ -6,7 +6,7 @@
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=1.10" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
@@ -16,9 +16,12 @@
       <span class="status-dot"></span>
       <span id="currentUserName">Loading...</span>
     </div>
-    <div class="header-actions" style="display: flex; align-items: center; gap: 8px;">
-      <span style="font-size: 0.72rem; color: #64748b; font-weight: 700; background: #e2e8f0; padding: 3px 8px; border-radius: 10px;">v1.00</span>
-      <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
+    <div class="header-actions" style="display: flex; align-items: center; gap: 6px;">
+      <!-- Clickable version badge that forces an immediate software update -->
+      <button id="forceUpdateBtn" title="Tap to check for updates" style="font-size: 0.72rem; color: #4f46e5; font-weight: 700; background: #e0e7ff; padding: 4px 8px; border-radius: 10px; border: 1px solid #c7d2fe; cursor: pointer;">
+        v1.10 ⟳
+      </button>
+      <button id="switchUserBtn" class="pill-btn secondary">Switch</button>
     </div>
   </header>
 
@@ -64,7 +67,7 @@
     </section>
   </main>
 
-  <!-- CHAT TAB: WHATSAPP-LIKE MESSAGING -->
+  <!-- CHAT TAB: MESSAGING -->
   <section id="chatTab" class="view-panel">
     <div class="chat-container">
       <div class="messages-list" id="messagesList">
@@ -93,8 +96,11 @@
   <section id="debugTab" class="view-panel">
     <div class="card debug-card">
       <div class="debug-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3 style="font-size: 1rem;">Diagnostics & Error Logs</h3>
-        <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
+        <h3 style="font-size: 1rem;">Diagnostics & Controls</h3>
+        <div style="display: flex; gap: 6px;">
+          <button id="wipeAppCacheBtn" class="pill-btn" style="background: #e0e7ff; color: #4338ca;">Force Refresh</button>
+          <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
+        </div>
       </div>
       <div id="debugLogList" class="debug-list">
         <!-- System events and errors render here -->
@@ -126,11 +132,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(console.error);
-    }
-  </script>
+  <script type="module" src="app.js?v=1.10"></script>
 </body>
 </html>
