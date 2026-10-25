@@ -429,3 +429,40 @@ select {
 }
 
 .hidden { display: none !important; }
+
+/* Test Results Panel for Automated Bug Check */
+.test-results-panel {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.test-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.test-item.pass { background: #dcfce7; color: #15803d; }
+.test-item.fail { background: #fee2e2; color: #b91c1c; }
+.test-item.running { background: #fef3c7; color: #b45309; }
+
+.test-summary {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 8px;
+  border-radius: 8px;
+  margin-top: 6px;
+}
+.test-summary.all-pass { background: #bbf7d0; color: #14532d; }
+.test-summary.has-fail { background: #fecaca; color: #7f1d1d; }
