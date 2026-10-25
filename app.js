@@ -16,10 +16,8 @@ const firebaseConfig = {
   appId: "1:142490478165:web:b621dd1921cb0e85bcd6dc"
 };
 
-// Base topic namespace
 const BASE_TOPIC = "alert-system4565";
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -41,13 +39,55 @@ window.onerror = (message, source, lineno) => logSystem(`${message} at line ${li
 window.onunhandledrejection = (event) => logSystem(`Promise rejection: ${event.reason}`, "error");
 
 // ==========================================
-// 3. TARGETED INBOX & ACCOUNT SYSTEM
+// 3. AUTO-UPDATE & SAFE CACHE-BUSTER
+// (Clears ONLY this app's storage; never touches her phone's other data)
+// ==========================================
+async function cleanAppCacheAndReload() {
+  logSystem("Purging app cache and checking server...", "warn");
+  if ('caches' in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map((name) => caches.delete(name)));
+  }
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (let registration of registrations) {
+      await registration.unregister();
+    }
+  }
+  // Hard reload bypassing browser cache
+  window.location.href = window.location.pathname + '?nocache=' + Date.now();
+}
+
+const forceUpdateBtn = document.getElementById("forceUpdateBtn");
+if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
+
+const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
+if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
+
+// Register Service Worker with active update check
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js?v=1.10').then((reg) => {
+    reg.update(); // Ask server if a newer sw.js exists
+
+    reg.onupdatefound = () => {
+      const installingWorker = reg.installing;
+      installingWorker.onstatechange = () => {
+        if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          logSystem("New update found! Reloading automatically...", "info");
+          setTimeout(() => window.location.reload(), 1000);
+        }
+      };
+    };
+  }).catch((err) => logSystem(`SW error: ${err.message}`, "error"));
+}
+
+// ==========================================
+// 4. TARGETED INBOX & ACCOUNT SYSTEM
 // ==========================================
 let currentUser = localStorage.getItem("summon_user") || "Brother";
 const currentUserNameEl = document.getElementById("currentUserName");
 const profileModal = document.getElementById("profileModal");
 
-// Sends message to the OTHER person's inbox
 function getTargetTopic() {
   return currentUser === "Brother" 
     ? `${BASE_TOPIC}-sister` 
@@ -59,9 +99,9 @@ function setUser(username) {
   localStorage.setItem("summon_user", username);
   if (currentUserNameEl) {
     const listenTopic = username === "Sister" ? `${BASE_TOPIC}-sister` : `${BASE_TOPIC}-brother`;
-    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(Listening: ${listenTopic})</span>`;
+    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
   }
-  logSystem(`Active profile: ${username}. Sending alerts to: ${getTargetTopic()}`);
+  logSystem(`Profile: ${username}. Target topic: ${getTargetTopic()}`);
 }
 setUser(currentUser);
 
@@ -76,7 +116,7 @@ document.querySelectorAll(".profile-choice").forEach(btn => {
 });
 
 // ==========================================
-// 4. TAB NAVIGATION
+// 5. TAB NAVIGATION
 // ==========================================
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
@@ -90,7 +130,7 @@ document.querySelectorAll(".tab").forEach(tab => {
 });
 
 // ==========================================
-// 5. SUMMON / HIGH-PRIORITY NTFY LOGIC
+// 6. SUMMON / HIGH-PRIORITY NTFY
 // ==========================================
 const alertInput = document.getElementById("alertInput");
 const sendAlertBtn = document.getElementById("sendAlertBtn");
@@ -105,7 +145,7 @@ document.querySelectorAll(".chip").forEach(chip => {
 
 async function sendNtfyNotification(text, priority = "high") {
   const priorityMap = {
-    "default": 4, // Upgraded to 4 so mobile phones don't delay it
+    "default": 4,
     "high": 4,
     "urgent": 5
   };
@@ -124,8 +164,8 @@ async function sendNtfyNotification(text, priority = "high") {
       })
     });
 
-    if (!res.ok) throw new Error(`ntfy returned status ${res.status}`);
-    logSystem(`High-priority ping dispatched to ${recipientTopic}`);
+    if (!res.ok) throw new Error(`ntfy status ${res.status}`);
+    logSystem(`Notification sent to: ${recipientTopic}`);
     return true;
   } catch (err) {
     logSystem(`ntfy send failed: ${err.message}`, "error");
@@ -142,7 +182,7 @@ if (sendAlertBtn) {
     }
 
     sendAlertBtn.disabled = true;
-    alertStatus.textContent = "Buzzing her phone...";
+    alertStatus.textContent = "Broadcasting alert...";
 
     const success = await sendNtfyNotification(text, alertPriority.value);
 
@@ -155,22 +195,22 @@ if (sendAlertBtn) {
         seenBy: [currentUser]
       });
     } catch (err) {
-      logSystem(`Firestore alert sync warning: ${err.message}`, "warn");
+      logSystem(`Firestore alert sync error: ${err.message}`, "warn");
     }
 
     if (success) {
-      alertStatus.textContent = "✅ Delivered to her room!";
+      alertStatus.textContent = "✅ Sent to her phone!";
       alertInput.value = "";
       setTimeout(() => { if (alertStatus) alertStatus.textContent = ""; }, 4000);
     } else {
-      alertStatus.textContent = "❌ Failed to send. Check debug logs.";
+      alertStatus.textContent = "❌ Failed to send. Check debug tab.";
     }
     sendAlertBtn.disabled = false;
   };
 }
 
 // ==========================================
-// 6. MESSAGING & CHAT SYSTEM
+// 7. MESSAGING & CHAT SYSTEM
 // ==========================================
 const messagesList = document.getElementById("messagesList");
 const chatForm = document.getElementById("chatForm");
@@ -240,7 +280,6 @@ if (chatForm) {
         edited: false
       });
 
-      // Send instant push to the other person
       sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default");
     } catch (err) {
       logSystem(`Chat send error: ${err.message}`, "error");
@@ -391,6 +430,7 @@ if (saveEditBtn) {
         text: newText,
         edited: true
       });
+      logSystem(`Updated message ${currentEditId}`);
     } catch (err) {
       logSystem(`Failed to edit message: ${err.message}`, "error");
     }
