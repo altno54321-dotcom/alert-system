@@ -6,11 +6,11 @@
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <link rel="stylesheet" href="style.css?v=1.40" />
+  <link rel="stylesheet" href="style.css?v=1.50" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
-  <!-- Top Bar -->
+  <!-- Top Bar: Identity & App Update -->
   <header class="topbar">
     <div class="user-badge" id="currentUserBadge">
       <span class="status-dot"></span>
@@ -18,11 +18,19 @@
     </div>
     <div class="header-actions" style="display: flex; align-items: center; gap: 6px;">
       <button id="forceUpdateBtn" title="Tap to check for updates" style="font-size: 0.72rem; color: #4f46e5; font-weight: 700; background: #e0e7ff; padding: 4px 8px; border-radius: 10px; border: 1px solid #c7d2fe; cursor: pointer;">
-        v1.40 ⟳
+        v1.50 ⟳
       </button>
-      <button id="switchUserBtn" class="pill-btn secondary">Switch</button>
+      <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
     </div>
   </header>
+
+  <!-- Recipient Selector: Who are you contacting? -->
+  <div class="recipient-bar">
+    <span class="recipient-label">Chatting / Alerting:</span>
+    <div class="recipient-pills" id="recipientPillsContainer">
+      <!-- Populated dynamically via app.js -->
+    </div>
+  </div>
 
   <!-- Navigation Tabs -->
   <nav class="nav-tabs">
@@ -34,14 +42,14 @@
   <!-- MAIN TAB: SUMMON / INSTANT ALERT -->
   <main id="alertTab" class="view-panel active">
     <section class="card hero-card">
-      <h2>Summon Downstairs</h2>
-      <p class="subtitle">Broadcasts an instant loud notification to her phone via ntfy.</p>
+      <h2 id="summonTitle">Summon Downstairs</h2>
+      <p class="subtitle" id="summonSubtitle">Broadcasts an instant loud notification to her phone via ntfy.</p>
 
       <div class="preset-chips">
         <button class="chip" data-msg="Dinner is ready! Come downstairs 🍲">🍲 Dinner</button>
         <button class="chip" data-msg="Package arrived for you downstairs 📦">📦 Package</button>
         <button class="chip" data-msg="Need you downstairs right now! 🏃‍♀️">🏃 Urgent</button>
-        <button class="chip" data-msg="Family movie / snacks time! 🍿">🍿 Movie</button>
+        <button class="chip" data-msg="Family snacks & tea ready! ☕">☕ Tea / Snacks</button>
       </div>
 
       <div class="form-group">
@@ -59,18 +67,18 @@
       </div>
 
       <button id="sendAlertBtn" class="primary-btn">
-        <span>Send Instant Alert</span> 🚀
+        <span id="sendAlertBtnText">Send Instant Alert</span> 🚀
       </button>
 
       <div id="alertStatus" class="status-msg"></div>
     </section>
   </main>
 
-  <!-- CHAT TAB: MESSAGING -->
+  <!-- CHAT TAB: 1-ON-1 CONVERSATIONS -->
   <section id="chatTab" class="view-panel">
     <div class="chat-container">
       <div class="messages-list" id="messagesList">
-        <div class="chat-placeholder" style="text-align: center; color: #94a3b8; margin-top: 20px; font-size: 0.9rem;">Loading messages...</div>
+        <div class="chat-placeholder" style="text-align: center; color: #94a3b8; margin-top: 20px; font-size: 0.9rem;">Loading conversation...</div>
       </div>
 
       <!-- Image Preview Container -->
@@ -102,12 +110,10 @@
         </div>
       </div>
 
-      <!-- Full-Feature Diagnostic Trigger -->
       <button id="runBugCheckBtn" class="primary-btn" style="margin-bottom: 12px; padding: 10px 14px; background: #059669; font-size: 0.88rem;">
         🧪 Run Full-Feature Test Mode
       </button>
 
-      <!-- Results Panel -->
       <div id="bugCheckResults" class="test-results-panel hidden"></div>
 
       <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin: 8px 0 4px 0;">LIVE ACTIVITY LOGS:</div>
@@ -115,14 +121,15 @@
     </div>
   </section>
 
-  <!-- Profile Switcher Modal -->
+  <!-- Profile Switcher Modal (3 Users) -->
   <div id="profileModal" class="modal hidden">
     <div class="modal-card">
       <h3>Select Your Identity</h3>
-      <p style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">Who is using this device right now?</p>
+      <p style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">Who is using this phone right now?</p>
       <div class="profile-options">
         <button class="profile-choice" data-user="Brother">Brother (Downstairs)</button>
         <button class="profile-choice" data-user="Sister">Sister (Upstairs Room)</button>
+        <button class="profile-choice" data-user="Mom">Mom (Master Bedroom)</button>
       </div>
     </div>
   </div>
@@ -139,6 +146,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.40"></script>
+  <script type="module" src="app.js?v=1.50"></script>
 </body>
 </html>
