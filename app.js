@@ -22,25 +22,59 @@ const ALL_USERS = ["Brother", "Sister", "Mom"];
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Safe timestamp parsing
-function getMillis(ts) {
-  if (!ts) return Date.now();
-  if (typeof ts === "number") return ts;
-  if (ts.toMillis) return ts.toMillis();
-  if (ts.seconds) return ts.seconds * 1000;
-  return new Date(ts).getTime() || Date.now();
-}
-
-// Generate unique deterministic 1-on-1 room ID between two users
-function getRoomId(userA, userB) {
-  return [userA, userB].sort().join("_");
-}
-
 // ==========================================
-// 2. DIAGNOSTICS LOGGING
+// 2. DOM ELEMENT REFERENCES (Declared First)
 // ==========================================
+const currentUserNameEl = document.getElementById("currentUserName");
+const switchBtn = document.getElementById("switchUserBtn");
+const forceUpdateBtn = document.getElementById("forceUpdateBtn");
+const recipientPillsContainer = document.getElementById("recipientPillsContainer");
+
+// Summon tab elements
+const summonTitle = document.getElementById("summonTitle");
+const summonSubtitle = document.getElementById("summonSubtitle");
+const sendAlertBtn = document.getElementById("sendAlertBtn");
+const sendAlertBtnText = document.getElementById("sendAlertBtnText");
+const alertInput = document.getElementById("alertInput");
+const alertPriority = document.getElementById("alertPriority");
+const alertStatus = document.getElementById("alertStatus");
+
+// Chat tab elements
+const messagesList = document.getElementById("messagesList");
+const chatForm = document.getElementById("chatForm");
+const chatTextInput = document.getElementById("chatTextInput");
+const chatFileInput = document.getElementById("chatFileInput");
+const imagePreviewContainer = document.getElementById("imagePreviewContainer");
+const imagePreview = document.getElementById("imagePreview");
+const cancelImageBtn = document.getElementById("cancelImageBtn");
+
+// Modals
+const profileModal = document.getElementById("profileModal");
+const editModal = document.getElementById("editModal");
+const editTextarea = document.getElementById("editTextarea");
+const cancelEditBtn = document.getElementById("cancelEditBtn");
+const saveEditBtn = document.getElementById("saveEditBtn");
+
+// Diagnostics elements
 const debugList = document.getElementById("debugLogList");
+const clearLogsBtn = document.getElementById("clearLogsBtn");
+const runBugCheckBtn = document.getElementById("runBugCheckBtn");
+const bugCheckResults = document.getElementById("bugCheckResults");
+const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
 
+// ==========================================
+// 3. APPLICATION STATE
+// ==========================================
+let currentUser = localStorage.getItem("summon_user") || "Brother";
+let currentRecipient = localStorage.getItem("summon_recipient") || (currentUser === "Brother" ? "Sister" : "Brother");
+let attachedImageData = null;
+let currentEditId = null;
+let cachedAllDocs = [];
+const markedSeenCache = new Set();
+
+// ==========================================
+// 4. LOGGING & HELPERS
+// ==========================================
 function logSystem(msg, type = "info") {
   const timestamp = new Date().toLocaleTimeString();
   const entry = document.createElement("div");
@@ -53,11 +87,28 @@ function logSystem(msg, type = "info") {
 window.onerror = (message, source, lineno) => logSystem(`${message} at line ${lineno}`, "error");
 window.onunhandledrejection = (event) => logSystem(`Promise rejection: ${event.reason}`, "error");
 
+function getMillis(ts) {
+  if (!ts) return Date.now();
+  if (typeof ts === "number") return ts;
+  if (ts.toMillis) return ts.toMillis();
+  if (ts.seconds) return ts.seconds * 1000;
+  return new Date(ts).getTime() || Date.now();
+}
+
+function getRoomId(userA, userB) {
+  return [userA, userB].sort().join("_");
+}
+
+function getTargetTopic(recipient, isTest = false) {
+  if (isTest) return `${BASE_TOPIC}-diagnostics`;
+  return `${BASE_TOPIC}-${recipient.toLowerCase()}`;
+}
+
 // ==========================================
-// 3. AUTO-UPDATE & CACHE RECOVERY
+// 5. CACHE BUSTER & AUTO-UPDATER
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v1.50...", "warn");
+  logSystem("Purging cache for v1.60...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -71,20 +122,17 @@ async function cleanAppCacheAndReload() {
   window.location.href = window.location.pathname + '?nocache=' + Date.now();
 }
 
-const forceUpdateBtn = document.getElementById("forceUpdateBtn");
 if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
-
-const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.50').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=1.60').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("v1.50 ready! Updating...", "info");
+          logSystem("v1.60 ready! Refreshing...", "info");
           setTimeout(() => window.location.reload(), 800);
         }
       };
@@ -93,29 +141,20 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==========================================
-// 4. USER IDENTITY & RECIPIENT SELECTION
+// 6. UI RENDERING FUNCTIONS
 // ==========================================
-let currentUser = localStorage.getItem("summon_user") || "Brother";
-let currentRecipient = localStorage.getItem("summon_recipient") || (currentUser === "Brother" ? "Sister" : "Brother");
-
-const currentUserNameEl = document.getElementById("currentUserName");
-const profileModal = document.getElementById("profileModal");
-const recipientPillsContainer = document.getElementById("recipientPillsContainer");
-const summonTitle = document.getElementById("summonTitle");
-const summonSubtitle = document.getElementById("summonSubtitle");
-const sendAlertBtnText = document.getElementById("sendAlertBtnText");
-
-function getTargetTopic(recipient, isTest = false) {
-  if (isTest) return `${BASE_TOPIC}-diagnostics`;
-  return `${BASE_TOPIC}-${recipient.toLowerCase()}`;
+function updateUIForRecipient() {
+  if (summonTitle) summonTitle.textContent = `Summon ${currentRecipient}`;
+  if (summonSubtitle) summonSubtitle.textContent = `Broadcasts an instant loud notification to ${currentRecipient}'s phone.`;
+  if (sendAlertBtnText) sendAlertBtnText.textContent = `Alert ${currentRecipient}`;
+  logSystem(`Active target: ${currentRecipient} (Topic: ${getTargetTopic(currentRecipient)})`);
 }
 
-// Update the recipient buttons based on currentUser
 function renderRecipientPills() {
+  if (!recipientPillsContainer) return;
   recipientPillsContainer.innerHTML = "";
   const possibleRecipients = ALL_USERS.filter(u => u !== currentUser);
 
-  // If current recipient is not valid for this user, default to the first one
   if (!possibleRecipients.includes(currentRecipient)) {
     currentRecipient = possibleRecipients[0];
     localStorage.setItem("summon_recipient", currentRecipient);
@@ -130,220 +169,16 @@ function renderRecipientPills() {
       localStorage.setItem("summon_recipient", name);
       renderRecipientPills();
       updateUIForRecipient();
-      renderChatMessages(); // re-filter chat for newly selected person
+      renderChatMessages();
     };
     recipientPillsContainer.appendChild(pill);
   });
 }
 
-function updateUIForRecipient() {
-  summonTitle.textContent = `Summon ${currentRecipient}`;
-  summonSubtitle.textContent = `Broadcasts an instant loud notification to ${currentRecipient}'s phone.`;
-  sendAlertBtnText.textContent = `Alert ${currentRecipient}`;
-  logSystem(`Active recipient set to: ${currentRecipient} (Topic: ${getTargetTopic(currentRecipient)})`);
-}
-
-function setUser(username) {
-  currentUser = username;
-  localStorage.setItem("summon_user", username);
-  if (currentUserNameEl) {
-    const listenTopic = getTargetTopic(username);
-    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
-  }
-  renderRecipientPills();
-  updateUIForRecipient();
-  renderChatMessages();
-}
-
-setUser(currentUser);
-
-const switchBtn = document.getElementById("switchUserBtn");
-if (switchBtn) switchBtn.onclick = () => profileModal.classList.remove("hidden");
-
-document.querySelectorAll(".profile-choice").forEach(btn => {
-  btn.onclick = () => {
-    setUser(btn.dataset.user);
-    profileModal.classList.add("hidden");
-  };
-});
-
-// ==========================================
-// 5. TABS NAVIGATION
-// ==========================================
-document.querySelectorAll(".tab").forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
-
-    tab.classList.add("active");
-    const target = document.getElementById(tab.dataset.tab);
-    if (target) target.classList.add("active");
-  };
-});
-
-// ==========================================
-// 6. SUMMON & NTFY NOTIFICATIONS
-// ==========================================
-const alertInput = document.getElementById("alertInput");
-const sendAlertBtn = document.getElementById("sendAlertBtn");
-const alertStatus = document.getElementById("alertStatus");
-const alertPriority = document.getElementById("alertPriority");
-
-document.querySelectorAll(".chip").forEach(chip => {
-  chip.onclick = () => {
-    if (alertInput) alertInput.value = chip.dataset.msg;
-  };
-});
-
-async function sendNtfyNotification(text, priority = "high", recipientName = currentRecipient, isTest = false) {
-  const priorityMap = { "default": 3, "high": 4, "urgent": 5 };
-  const recipientTopic = getTargetTopic(recipientName, isTest);
-
-  const payload = {
-    topic: recipientTopic,
-    title: isTest ? "🧪 System Diagnostic Alert" : `Message from ${currentUser}!`,
-    message: text,
-    priority: priorityMap[priority] || 4,
-    tags: isTest ? ["test_tube"] : ["loudspeaker", "bell"]
-  };
-
-  const res = await fetch("https://ntfy.sh", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) throw new Error(`ntfy HTTP ${res.status}`);
-  logSystem(`Alert (${priority}) dispatched to ${recipientTopic}`);
-  return true;
-}
-
-if (sendAlertBtn) {
-  sendAlertBtn.onclick = async () => {
-    const text = alertInput.value.trim();
-    if (!text) {
-      alertStatus.textContent = "Please write a message first.";
-      return;
-    }
-
-    sendAlertBtn.disabled = true;
-    alertStatus.textContent = `Buzzing ${currentRecipient}'s phone...`;
-
-    // 1. Send push to selected recipient
-    sendNtfyNotification(text, alertPriority.value, currentRecipient).catch(err => logSystem(`ntfy err: ${err.message}`, "error"));
-
-    // 2. Write to Firebase into this private 1-on-1 room
-    try {
-      await addDoc(collection(db, "messages"), {
-        roomId: getRoomId(currentUser, currentRecipient),
-        sender: currentUser,
-        recipient: currentRecipient,
-        text: `⚡ SUMMON: ${text}`,
-        timestamp: Date.now(),
-        reactions: {},
-        seenBy: [currentUser]
-      });
-      alertStatus.textContent = `✅ Delivered to ${currentRecipient}!`;
-      alertInput.value = "";
-      setTimeout(() => { if (alertStatus) alertStatus.textContent = ""; }, 4000);
-    } catch (err) {
-      logSystem(`Firestore alert sync error: ${err.message}`, "error");
-      alertStatus.textContent = "❌ Network error. Check debug logs.";
-    }
-    sendAlertBtn.disabled = false;
-  };
-}
-
-// ==========================================
-// 7. REAL-TIME 1-ON-1 CHAT ENGINE
-// ==========================================
-const messagesList = document.getElementById("messagesList");
-const chatForm = document.getElementById("chatForm");
-const chatTextInput = document.getElementById("chatTextInput");
-const chatFileInput = document.getElementById("chatFileInput");
-const imagePreviewContainer = document.getElementById("imagePreviewContainer");
-const imagePreview = document.getElementById("imagePreview");
-const cancelImageBtn = document.getElementById("cancelImageBtn");
-
-let attachedImageData = null;
-const markedSeenCache = new Set();
-let cachedAllDocs = [];
-
-if (chatFileInput) {
-  chatFileInput.onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 600;
-        const scaleSize = MAX_WIDTH / img.width;
-        canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
-        canvas.height = (img.width > MAX_WIDTH) ? (img.height * scaleSize) : img.height;
-        
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        attachedImageData = canvas.toDataURL("image/jpeg", 0.6);
-        imagePreview.src = attachedImageData;
-        imagePreviewContainer.classList.remove("hidden");
-      };
-    };
-    reader.readAsDataURL(file);
-  };
-}
-
-if (cancelImageBtn) {
-  cancelImageBtn.onclick = () => {
-    attachedImageData = null;
-    imagePreview.src = "";
-    chatFileInput.value = "";
-    imagePreviewContainer.classList.add("hidden");
-  };
-}
-
-if (chatForm) {
-  chatForm.onsubmit = async (e) => {
-    e.preventDefault();
-    const text = chatTextInput.value.trim();
-    const image = attachedImageData;
-
-    if (!text && !image) return;
-
-    chatTextInput.value = "";
-    if (cancelImageBtn) cancelImageBtn.click();
-
-    // Send push to current recipient
-    sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default", currentRecipient).catch(() => {});
-
-    // Save with roomId
-    try {
-      await addDoc(collection(db, "messages"), {
-        roomId: getRoomId(currentUser, currentRecipient),
-        sender: currentUser,
-        recipient: currentRecipient,
-        text: text || "",
-        imageUrl: image || null,
-        timestamp: Date.now(),
-        reactions: {},
-        seenBy: [currentUser],
-        edited: false
-      });
-      logSystem(`Message sent to ${currentRecipient}`);
-    } catch (err) {
-      logSystem(`Chat write error: ${err.message}`, "error");
-    }
-  };
-}
-
-// Render only the messages for the active conversation
 function renderChatMessages() {
   if (!messagesList) return;
   const activeRoomId = getRoomId(currentUser, currentRecipient);
 
-  // Filter messages belonging to this 1-on-1 room (or older legacy messages defaulted to Brother_Sister)
   const roomDocs = cachedAllDocs.filter(d => {
     const msgRoom = d.roomId || "Brother_Sister";
     return msgRoom === activeRoomId;
@@ -363,7 +198,7 @@ function renderChatMessages() {
     const id = data.id;
     const isMe = data.sender === currentUser;
 
-    // Mark as seen
+    // Auto mark as seen
     if (!isMe && (!data.seenBy || !data.seenBy.includes(currentUser))) {
       if (!markedSeenCache.has(id)) {
         markedSeenCache.add(id);
@@ -469,28 +304,181 @@ function renderChatMessages() {
   messagesList.scrollTop = messagesList.scrollHeight;
 }
 
-// Listen to Firestore
-const messagesQuery = query(collection(db, "messages"));
-onSnapshot(messagesQuery, (snapshot) => {
-  const loaded = [];
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    if (data._testDoc === true) return;
-    loaded.push({ id: docSnap.id, ...data, millis: getMillis(data.timestamp) });
-  });
-  cachedAllDocs = loaded;
+function setUser(username) {
+  currentUser = username;
+  localStorage.setItem("summon_user", username);
+  if (currentUserNameEl) {
+    const listenTopic = getTargetTopic(username);
+    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
+  }
+  renderRecipientPills();
+  updateUIForRecipient();
   renderChatMessages();
-}, (err) => {
-  logSystem(`Firestore Sync Error: ${err.message}`, "error");
+}
+
+// ==========================================
+// 7. EVENT LISTENERS WIRING
+// ==========================================
+
+// Tab navigation
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+
+    tab.classList.add("active");
+    const target = document.getElementById(tab.dataset.tab);
+    if (target) target.classList.add("active");
+  };
 });
 
-// Edit Modal
-const editModal = document.getElementById("editModal");
-const editTextarea = document.getElementById("editTextarea");
-const cancelEditBtn = document.getElementById("cancelEditBtn");
-const saveEditBtn = document.getElementById("saveEditBtn");
-let currentEditId = null;
+// Profile switcher modal
+if (switchBtn) {
+  switchBtn.onclick = () => profileModal.classList.remove("hidden");
+}
 
+document.querySelectorAll(".profile-choice").forEach(btn => {
+  btn.onclick = () => {
+    setUser(btn.dataset.user);
+    profileModal.classList.add("hidden");
+  };
+});
+
+// Preset Chips
+document.querySelectorAll(".chip").forEach(chip => {
+  chip.onclick = () => {
+    if (alertInput) alertInput.value = chip.dataset.msg;
+  };
+});
+
+// Summon Alert
+async function sendNtfyNotification(text, priority = "high", recipientName = currentRecipient, isTest = false) {
+  const priorityMap = { "default": 3, "high": 4, "urgent": 5 };
+  const recipientTopic = getTargetTopic(recipientName, isTest);
+
+  const payload = {
+    topic: recipientTopic,
+    title: isTest ? "🧪 System Diagnostic Alert" : `Message from ${currentUser}!`,
+    message: text,
+    priority: priorityMap[priority] || 4,
+    tags: isTest ? ["test_tube"] : ["loudspeaker", "bell"]
+  };
+
+  const res = await fetch("https://ntfy.sh", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) throw new Error(`ntfy HTTP ${res.status}`);
+  logSystem(`Alert (${priority}) dispatched to ${recipientTopic}`);
+  return true;
+}
+
+if (sendAlertBtn) {
+  sendAlertBtn.onclick = async () => {
+    const text = alertInput.value.trim();
+    if (!text) {
+      alertStatus.textContent = "Please write a message first.";
+      return;
+    }
+
+    sendAlertBtn.disabled = true;
+    alertStatus.textContent = `Buzzing ${currentRecipient}'s phone...`;
+
+    sendNtfyNotification(text, alertPriority.value, currentRecipient).catch(err => logSystem(`ntfy err: ${err.message}`, "error"));
+
+    try {
+      await addDoc(collection(db, "messages"), {
+        roomId: getRoomId(currentUser, currentRecipient),
+        sender: currentUser,
+        recipient: currentRecipient,
+        text: `⚡ SUMMON: ${text}`,
+        timestamp: Date.now(),
+        reactions: {},
+        seenBy: [currentUser]
+      });
+      alertStatus.textContent = `✅ Delivered to ${currentRecipient}!`;
+      alertInput.value = "";
+      setTimeout(() => { if (alertStatus) alertStatus.textContent = ""; }, 4000);
+    } catch (err) {
+      logSystem(`Firestore alert sync error: ${err.message}`, "error");
+      alertStatus.textContent = "❌ Network error. Check debug logs.";
+    }
+    sendAlertBtn.disabled = false;
+  };
+}
+
+// Chat photo picker & compression
+if (chatFileInput) {
+  chatFileInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_WIDTH = 600;
+        const scaleSize = MAX_WIDTH / img.width;
+        canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
+        canvas.height = (img.width > MAX_WIDTH) ? (img.height * scaleSize) : img.height;
+        
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        attachedImageData = canvas.toDataURL("image/jpeg", 0.6);
+        imagePreview.src = attachedImageData;
+        imagePreviewContainer.classList.remove("hidden");
+      };
+    };
+    reader.readAsDataURL(file);
+  };
+}
+
+if (cancelImageBtn) {
+  cancelImageBtn.onclick = () => {
+    attachedImageData = null;
+    imagePreview.src = "";
+    chatFileInput.value = "";
+    imagePreviewContainer.classList.add("hidden");
+  };
+}
+
+// Chat form submission
+if (chatForm) {
+  chatForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const text = chatTextInput.value.trim();
+    const image = attachedImageData;
+
+    if (!text && !image) return;
+
+    chatTextInput.value = "";
+    if (cancelImageBtn) cancelImageBtn.click();
+
+    sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default", currentRecipient).catch(() => {});
+
+    try {
+      await addDoc(collection(db, "messages"), {
+        roomId: getRoomId(currentUser, currentRecipient),
+        sender: currentUser,
+        recipient: currentRecipient,
+        text: text || "",
+        imageUrl: image || null,
+        timestamp: Date.now(),
+        reactions: {},
+        seenBy: [currentUser],
+        edited: false
+      });
+      logSystem(`Message sent to ${currentRecipient}`);
+    } catch (err) {
+      logSystem(`Chat write error: ${err.message}`, "error");
+    }
+  };
+}
+
+// Edit Modal
 function openEditModal(id, currentText) {
   currentEditId = id;
   editTextarea.value = currentText;
@@ -521,7 +509,6 @@ if (saveEditBtn) {
   };
 }
 
-const clearLogsBtn = document.getElementById("clearLogsBtn");
 if (clearLogsBtn) {
   clearLogsBtn.onclick = () => {
     debugList.innerHTML = "";
@@ -529,11 +516,25 @@ if (clearLogsBtn) {
 }
 
 // ==========================================
-// 8. MULTI-USER FULL-FEATURE TEST ENGINE
+// 8. FIRESTORE REAL-TIME LISTENER
 // ==========================================
-const runBugCheckBtn = document.getElementById("runBugCheckBtn");
-const bugCheckResults = document.getElementById("bugCheckResults");
+const messagesQuery = query(collection(db, "messages"));
+onSnapshot(messagesQuery, (snapshot) => {
+  const loaded = [];
+  snapshot.forEach(docSnap => {
+    const data = docSnap.data();
+    if (data._testDoc === true) return;
+    loaded.push({ id: docSnap.id, ...data, millis: getMillis(data.timestamp) });
+  });
+  cachedAllDocs = loaded;
+  renderChatMessages();
+}, (err) => {
+  logSystem(`Firestore Sync Error: ${err.message}`, "error");
+});
 
+// ==========================================
+// 9. AUTOMATED MULTI-USER BUG CHECK
+// ==========================================
 async function runComprehensiveBugCheck() {
   runBugCheckBtn.disabled = true;
   runBugCheckBtn.textContent = "⏳ Running Full Diagnostics...";
@@ -555,7 +556,7 @@ async function runComprehensiveBugCheck() {
     logSystem(`Test: ${title} -> ${isOk ? 'PASS' : 'FAIL'} (${detail})`, isOk ? 'info' : 'error');
   }
 
-  // 1. ntfy.sh Health Check
+  // 1. Health Check
   try {
     const t0 = performance.now();
     const res = await fetch("https://ntfy.sh/v1/health", { cache: "no-store" });
@@ -566,7 +567,7 @@ async function runComprehensiveBugCheck() {
     record("Gateway Health (ntfy.sh)", false, e.message);
   }
 
-  // 2. Multi-User Topic Routing Check (Brother, Sister, Mom)
+  // 2. 3-Way Topics
   try {
     const bTopic = getTargetTopic("Brother");
     const sTopic = getTargetTopic("Sister");
@@ -577,7 +578,7 @@ async function runComprehensiveBugCheck() {
     record("3-Way User Routing", false, e.message);
   }
 
-  // 3. 1-on-1 Room Determinism
+  // 3. Room IDs
   try {
     const r1 = getRoomId("Brother", "Mom");
     const r2 = getRoomId("Mom", "Brother");
@@ -586,7 +587,7 @@ async function runComprehensiveBugCheck() {
     record("1-on-1 Room Segregation", false, e.message);
   }
 
-  // 4. Alert Pipeline Diagnostic Probe
+  // 4. Alert Pipeline Probe
   try {
     const ok = await sendNtfyNotification("Diagnostics probe", "high", "Mom", true);
     record("Alert Delivery Subsystem", ok, "Isolated Diagnostic OK");
@@ -594,7 +595,7 @@ async function runComprehensiveBugCheck() {
     record("Alert Delivery Subsystem", false, e.message);
   }
 
-  // 5. Image Compression & Pipeline
+  // 5. Image Compression
   try {
     const canvas = document.createElement("canvas");
     canvas.width = 120;
@@ -608,7 +609,7 @@ async function runComprehensiveBugCheck() {
     record("Feature: Photo Engine", false, e.message);
   }
 
-  // 6. Database Operations (Write -> Edit -> React -> Delete)
+  // 6. DB Lifecycle (Write, Edit, React, Delete)
   let probeDocId = null;
   try {
     const tDoc = await addDoc(collection(db, "messages"), {
@@ -659,3 +660,8 @@ async function runComprehensiveBugCheck() {
 if (runBugCheckBtn) {
   runBugCheckBtn.onclick = runComprehensiveBugCheck;
 }
+
+// ==========================================
+// 10. INITIALIZE APP (Runs Safely After Everything Is Wired)
+// ==========================================
+setUser(currentUser);
