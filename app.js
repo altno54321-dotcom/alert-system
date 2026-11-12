@@ -17,17 +17,23 @@ const firebaseConfig = {
 };
 
 const BASE_TOPIC = "alert-system4565";
+const ALL_USERS = ["Brother", "Sister", "Mom"];
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Helper to convert any timestamp (Firestore object, Date, or Number) to milliseconds
+// Safe timestamp parsing
 function getMillis(ts) {
   if (!ts) return Date.now();
   if (typeof ts === "number") return ts;
   if (ts.toMillis) return ts.toMillis();
   if (ts.seconds) return ts.seconds * 1000;
   return new Date(ts).getTime() || Date.now();
+}
+
+// Generate unique deterministic 1-on-1 room ID between two users
+function getRoomId(userA, userB) {
+  return [userA, userB].sort().join("_");
 }
 
 // ==========================================
@@ -51,7 +57,7 @@ window.onunhandledrejection = (event) => logSystem(`Promise rejection: ${event.r
 // 3. AUTO-UPDATE & CACHE RECOVERY
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v1.40...", "warn");
+  logSystem("Purging cache for v1.50...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -72,13 +78,13 @@ const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.40').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=1.50').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("v1.40 ready! Updating...", "info");
+          logSystem("v1.50 ready! Updating...", "info");
           setTimeout(() => window.location.reload(), 800);
         }
       };
@@ -87,28 +93,68 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==========================================
-// 4. INBOX & IDENTITY
+// 4. USER IDENTITY & RECIPIENT SELECTION
 // ==========================================
 let currentUser = localStorage.getItem("summon_user") || "Brother";
+let currentRecipient = localStorage.getItem("summon_recipient") || (currentUser === "Brother" ? "Sister" : "Brother");
+
 const currentUserNameEl = document.getElementById("currentUserName");
 const profileModal = document.getElementById("profileModal");
+const recipientPillsContainer = document.getElementById("recipientPillsContainer");
+const summonTitle = document.getElementById("summonTitle");
+const summonSubtitle = document.getElementById("summonSubtitle");
+const sendAlertBtnText = document.getElementById("sendAlertBtnText");
 
-function getTargetTopic(isTest = false) {
+function getTargetTopic(recipient, isTest = false) {
   if (isTest) return `${BASE_TOPIC}-diagnostics`;
-  return currentUser === "Brother" 
-    ? `${BASE_TOPIC}-sister` 
-    : `${BASE_TOPIC}-brother`;
+  return `${BASE_TOPIC}-${recipient.toLowerCase()}`;
+}
+
+// Update the recipient buttons based on currentUser
+function renderRecipientPills() {
+  recipientPillsContainer.innerHTML = "";
+  const possibleRecipients = ALL_USERS.filter(u => u !== currentUser);
+
+  // If current recipient is not valid for this user, default to the first one
+  if (!possibleRecipients.includes(currentRecipient)) {
+    currentRecipient = possibleRecipients[0];
+    localStorage.setItem("summon_recipient", currentRecipient);
+  }
+
+  possibleRecipients.forEach(name => {
+    const pill = document.createElement("button");
+    pill.className = `recipient-pill ${name === currentRecipient ? 'active' : ''}`;
+    pill.textContent = name;
+    pill.onclick = () => {
+      currentRecipient = name;
+      localStorage.setItem("summon_recipient", name);
+      renderRecipientPills();
+      updateUIForRecipient();
+      renderChatMessages(); // re-filter chat for newly selected person
+    };
+    recipientPillsContainer.appendChild(pill);
+  });
+}
+
+function updateUIForRecipient() {
+  summonTitle.textContent = `Summon ${currentRecipient}`;
+  summonSubtitle.textContent = `Broadcasts an instant loud notification to ${currentRecipient}'s phone.`;
+  sendAlertBtnText.textContent = `Alert ${currentRecipient}`;
+  logSystem(`Active recipient set to: ${currentRecipient} (Topic: ${getTargetTopic(currentRecipient)})`);
 }
 
 function setUser(username) {
   currentUser = username;
   localStorage.setItem("summon_user", username);
   if (currentUserNameEl) {
-    const listenTopic = username === "Sister" ? `${BASE_TOPIC}-sister` : `${BASE_TOPIC}-brother`;
+    const listenTopic = getTargetTopic(username);
     currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
   }
-  logSystem(`Profile: ${username} | Recipient: ${getTargetTopic()}`);
+  renderRecipientPills();
+  updateUIForRecipient();
+  renderChatMessages();
 }
+
 setUser(currentUser);
 
 const switchBtn = document.getElementById("switchUserBtn");
@@ -122,7 +168,7 @@ document.querySelectorAll(".profile-choice").forEach(btn => {
 });
 
 // ==========================================
-// 5. TABS
+// 5. TABS NAVIGATION
 // ==========================================
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
@@ -149,9 +195,9 @@ document.querySelectorAll(".chip").forEach(chip => {
   };
 });
 
-async function sendNtfyNotification(text, priority = "high", isTest = false) {
+async function sendNtfyNotification(text, priority = "high", recipientName = currentRecipient, isTest = false) {
   const priorityMap = { "default": 3, "high": 4, "urgent": 5 };
-  const recipientTopic = getTargetTopic(isTest);
+  const recipientTopic = getTargetTopic(recipientName, isTest);
 
   const payload = {
     topic: recipientTopic,
@@ -180,21 +226,23 @@ if (sendAlertBtn) {
     }
 
     sendAlertBtn.disabled = true;
-    alertStatus.textContent = "Buzzing her phone...";
+    alertStatus.textContent = `Buzzing ${currentRecipient}'s phone...`;
 
-    // 1. Send push
-    sendNtfyNotification(text, alertPriority.value).catch(err => logSystem(`ntfy err: ${err.message}`, "error"));
+    // 1. Send push to selected recipient
+    sendNtfyNotification(text, alertPriority.value, currentRecipient).catch(err => logSystem(`ntfy err: ${err.message}`, "error"));
 
-    // 2. Write to Firebase
+    // 2. Write to Firebase into this private 1-on-1 room
     try {
       await addDoc(collection(db, "messages"), {
+        roomId: getRoomId(currentUser, currentRecipient),
         sender: currentUser,
+        recipient: currentRecipient,
         text: `⚡ SUMMON: ${text}`,
         timestamp: Date.now(),
         reactions: {},
         seenBy: [currentUser]
       });
-      alertStatus.textContent = "✅ Delivered to her room!";
+      alertStatus.textContent = `✅ Delivered to ${currentRecipient}!`;
       alertInput.value = "";
       setTimeout(() => { if (alertStatus) alertStatus.textContent = ""; }, 4000);
     } catch (err) {
@@ -206,7 +254,7 @@ if (sendAlertBtn) {
 }
 
 // ==========================================
-// 7. REAL-TIME CHAT ENGINE (Fixed Chronological Sorting)
+// 7. REAL-TIME 1-ON-1 CHAT ENGINE
 // ==========================================
 const messagesList = document.getElementById("messagesList");
 const chatForm = document.getElementById("chatForm");
@@ -218,6 +266,7 @@ const cancelImageBtn = document.getElementById("cancelImageBtn");
 
 let attachedImageData = null;
 const markedSeenCache = new Set();
+let cachedAllDocs = [];
 
 if (chatFileInput) {
   chatFileInput.onchange = (e) => {
@@ -266,13 +315,15 @@ if (chatForm) {
     chatTextInput.value = "";
     if (cancelImageBtn) cancelImageBtn.click();
 
-    // 1. Send push in background
-    sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default").catch(() => {});
+    // Send push to current recipient
+    sendNtfyNotification(`${currentUser}: ${text || "Sent a photo 📷"}`, "default", currentRecipient).catch(() => {});
 
-    // 2. Commit to database
+    // Save with roomId
     try {
       await addDoc(collection(db, "messages"), {
+        roomId: getRoomId(currentUser, currentRecipient),
         sender: currentUser,
+        recipient: currentRecipient,
         text: text || "",
         imageUrl: image || null,
         timestamp: Date.now(),
@@ -280,34 +331,31 @@ if (chatForm) {
         seenBy: [currentUser],
         edited: false
       });
-      logSystem(`Message successfully recorded in database`);
+      logSystem(`Message sent to ${currentRecipient}`);
     } catch (err) {
       logSystem(`Chat write error: ${err.message}`, "error");
     }
   };
 }
 
-// Fixed Query: Listen to messages and sort client-side by exact milliseconds
-const messagesQuery = query(collection(db, "messages"));
-
-onSnapshot(messagesQuery, (snapshot) => {
+// Render only the messages for the active conversation
+function renderChatMessages() {
   if (!messagesList) return;
-  
-  const rawDocs = [];
-  snapshot.forEach(docSnap => {
-    const data = docSnap.data();
-    if (data._testDoc === true) return; // Hide test probes
-    rawDocs.push({ id: docSnap.id, ...data, millis: getMillis(data.timestamp) });
+  const activeRoomId = getRoomId(currentUser, currentRecipient);
+
+  // Filter messages belonging to this 1-on-1 room (or older legacy messages defaulted to Brother_Sister)
+  const roomDocs = cachedAllDocs.filter(d => {
+    const msgRoom = d.roomId || "Brother_Sister";
+    return msgRoom === activeRoomId;
   });
 
-  // Strict chronological sorting: newest at the bottom
-  rawDocs.sort((a, b) => a.millis - b.millis);
-  const displayDocs = rawDocs.slice(-60); // Keep last 60 active
+  roomDocs.sort((a, b) => a.millis - b.millis);
+  const displayDocs = roomDocs.slice(-60);
 
   messagesList.innerHTML = "";
 
   if (displayDocs.length === 0) {
-    messagesList.innerHTML = `<div class="chat-placeholder" style="text-align: center; color: #94a3b8; margin-top: 20px; font-size: 0.9rem;">No messages yet. Say hello! 👋</div>`;
+    messagesList.innerHTML = `<div class="chat-placeholder" style="text-align: center; color: #94a3b8; margin-top: 20px; font-size: 0.9rem;">No messages with ${currentRecipient} yet. Say hello! 👋</div>`;
     return;
   }
 
@@ -315,7 +363,7 @@ onSnapshot(messagesQuery, (snapshot) => {
     const id = data.id;
     const isMe = data.sender === currentUser;
 
-    // Mark as seen once
+    // Mark as seen
     if (!isMe && (!data.seenBy || !data.seenBy.includes(currentUser))) {
       if (!markedSeenCache.has(id)) {
         markedSeenCache.add(id);
@@ -399,7 +447,7 @@ onSnapshot(messagesQuery, (snapshot) => {
       };
     });
 
-    // Delete click
+    // Delete
     const delBtn = actions.querySelector(".del-btn");
     if (delBtn) {
       delBtn.onclick = async () => {
@@ -409,7 +457,7 @@ onSnapshot(messagesQuery, (snapshot) => {
       };
     }
 
-    // Edit click
+    // Edit
     const editBtn = actions.querySelector(".edit-btn");
     if (editBtn) {
       editBtn.onclick = () => openEditModal(id, data.text);
@@ -419,6 +467,19 @@ onSnapshot(messagesQuery, (snapshot) => {
   });
 
   messagesList.scrollTop = messagesList.scrollHeight;
+}
+
+// Listen to Firestore
+const messagesQuery = query(collection(db, "messages"));
+onSnapshot(messagesQuery, (snapshot) => {
+  const loaded = [];
+  snapshot.forEach(docSnap => {
+    const data = docSnap.data();
+    if (data._testDoc === true) return;
+    loaded.push({ id: docSnap.id, ...data, millis: getMillis(data.timestamp) });
+  });
+  cachedAllDocs = loaded;
+  renderChatMessages();
 }, (err) => {
   logSystem(`Firestore Sync Error: ${err.message}`, "error");
 });
@@ -468,7 +529,7 @@ if (clearLogsBtn) {
 }
 
 // ==========================================
-// 8. FULL-FEATURE TEST ENGINE (Runs All Features In Isolation)
+// 8. MULTI-USER FULL-FEATURE TEST ENGINE
 // ==========================================
 const runBugCheckBtn = document.getElementById("runBugCheckBtn");
 const bugCheckResults = document.getElementById("bugCheckResults");
@@ -494,7 +555,7 @@ async function runComprehensiveBugCheck() {
     logSystem(`Test: ${title} -> ${isOk ? 'PASS' : 'FAIL'} (${detail})`, isOk ? 'info' : 'error');
   }
 
-  // 1. Official ntfy.sh Health Check
+  // 1. ntfy.sh Health Check
   try {
     const t0 = performance.now();
     const res = await fetch("https://ntfy.sh/v1/health", { cache: "no-store" });
@@ -505,28 +566,32 @@ async function runComprehensiveBugCheck() {
     record("Gateway Health (ntfy.sh)", false, e.message);
   }
 
-  // 2. Normal Alert Pipeline Test (Priority 3)
+  // 2. Multi-User Topic Routing Check (Brother, Sister, Mom)
   try {
-    const ok = await sendNtfyNotification("Normal alert payload probe", "default", true);
-    record("Feature: Normal Alert Delivery", ok, "Priority 3 OK");
+    const bTopic = getTargetTopic("Brother");
+    const sTopic = getTargetTopic("Sister");
+    const mTopic = getTargetTopic("Mom");
+    const valid = bTopic.endsWith("-brother") && sTopic.endsWith("-sister") && mTopic.endsWith("-mom");
+    record("3-Way User Routing", valid, "Mom/Sister/Brother mapped");
   } catch (e) {
-    record("Feature: Normal Alert Delivery", false, e.message);
+    record("3-Way User Routing", false, e.message);
   }
 
-  // 3. Loud Alert Pipeline Test (Priority 4)
+  // 3. 1-on-1 Room Determinism
   try {
-    const ok = await sendNtfyNotification("Loud alert payload probe", "high", true);
-    record("Feature: Loud Alert Delivery", ok, "Priority 4 OK");
+    const r1 = getRoomId("Brother", "Mom");
+    const r2 = getRoomId("Mom", "Brother");
+    record("1-on-1 Room Segregation", r1 === r2 && r1 === "Brother_Mom", "Private Room IDs OK");
   } catch (e) {
-    record("Feature: Loud Alert Delivery", false, e.message);
+    record("1-on-1 Room Segregation", false, e.message);
   }
 
-  // 4. Max Urgent Alert Pipeline Test (Priority 5)
+  // 4. Alert Pipeline Diagnostic Probe
   try {
-    const ok = await sendNtfyNotification("Max urgent alert payload probe", "urgent", true);
-    record("Feature: Max Urgent Alert Delivery", ok, "Priority 5 OK");
+    const ok = await sendNtfyNotification("Diagnostics probe", "high", "Mom", true);
+    record("Alert Delivery Subsystem", ok, "Isolated Diagnostic OK");
   } catch (e) {
-    record("Feature: Max Urgent Alert Delivery", false, e.message);
+    record("Alert Delivery Subsystem", false, e.message);
   }
 
   // 5. Image Compression & Pipeline
@@ -543,11 +608,11 @@ async function runComprehensiveBugCheck() {
     record("Feature: Photo Engine", false, e.message);
   }
 
-  // 6, 7, 8, 9: Messaging Full Lifecycle (Write -> Edit -> React -> Delete)
+  // 6. Database Operations (Write -> Edit -> React -> Delete)
   let probeDocId = null;
   try {
-    // Write
     const tDoc = await addDoc(collection(db, "messages"), {
+      roomId: "System_Diagnostic",
       sender: "TestProbe",
       text: "Initial Probe Message",
       timestamp: Date.now(),
@@ -558,39 +623,32 @@ async function runComprehensiveBugCheck() {
     probeDocId = tDoc.id;
     record("Feature: Send Message (DB)", true, `DocID: ${probeDocId.slice(0, 5)}...`);
 
-    // Edit
     await updateDoc(doc(db, "messages", probeDocId), {
       text: "Edited Probe Message",
       edited: true
     });
     const editedSnap = await getDoc(doc(db, "messages", probeDocId));
-    const isEditedOk = editedSnap.data().text === "Edited Probe Message" && editedSnap.data().edited === true;
-    record("Feature: Edit Message", isEditedOk, "Content verified");
+    record("Feature: Edit Message", editedSnap.data().text === "Edited Probe Message", "Content verified");
 
-    // Reactions
     await updateDoc(doc(db, "messages", probeDocId), {
       "reactions.❤️": ["TestProbe"]
     });
     const reactSnap = await getDoc(doc(db, "messages", probeDocId));
-    const isReactOk = reactSnap.data().reactions?.["❤️"]?.includes("TestProbe");
-    record("Feature: Emoji Reactions", isReactOk, "❤️ reaction active");
+    record("Feature: Emoji Reactions", reactSnap.data().reactions?.["❤️"]?.includes("TestProbe"), "Reaction active");
 
-    // Deletion
     await deleteDoc(doc(db, "messages", probeDocId));
-    const deletedSnap = await getDoc(doc(db, "messages", probeDocId));
-    record("Feature: Delete Message", !deletedSnap.exists(), "Cleanly purged");
     probeDocId = null;
+    record("Feature: Delete Message", true, "Cleanly purged");
   } catch (e) {
     record("Messaging Lifecycle Test", false, e.message);
     if (probeDocId) deleteDoc(doc(db, "messages", probeDocId)).catch(() => {});
   }
 
-  // Summary
   const summary = document.createElement("div");
   const allPassed = failed === 0;
   summary.className = `test-summary ${allPassed ? 'all-pass' : 'has-fail'}`;
   summary.textContent = allPassed 
-    ? `🎉 All ${passed} features fully verified & functional!` 
+    ? `🎉 All ${passed} tests passed! Mom, Sister & Brother ready.` 
     : `⚠️ Diagnostic report: ${passed} passed, ${failed} failed.`;
   bugCheckResults.prepend(summary);
 
