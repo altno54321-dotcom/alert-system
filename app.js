@@ -23,13 +23,14 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ==========================================
-// 2. DOM REFERENCES
+// 2. DOM ELEMENT REFERENCES
 // ==========================================
 const currentUserNameEl = document.getElementById("currentUserName");
 const switchBtn = document.getElementById("switchUserBtn");
 const recipientPillsContainer = document.getElementById("recipientPillsContainer");
+const chatRecipientName = document.getElementById("chatRecipientName");
 
-// Debug Menu Elements (Theme & Updater now located here)
+// Preferences & Debug
 const themeToggleBtn = document.getElementById("themeToggleBtn");
 const forceUpdateBtn = document.getElementById("forceUpdateBtn");
 const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
@@ -38,7 +39,7 @@ const runBugCheckBtn = document.getElementById("runBugCheckBtn");
 const bugCheckResults = document.getElementById("bugCheckResults");
 const debugList = document.getElementById("debugLogList");
 
-// Summon Elements
+// Summon
 const summonTitle = document.getElementById("summonTitle");
 const summonSubtitle = document.getElementById("summonSubtitle");
 const sendAlertBtn = document.getElementById("sendAlertBtn");
@@ -46,8 +47,9 @@ const sendAlertBtnText = document.getElementById("sendAlertBtnText");
 const alertInput = document.getElementById("alertInput");
 const alertPriority = document.getElementById("alertPriority");
 const alertStatus = document.getElementById("alertStatus");
+const prioritySegmented = document.getElementById("prioritySegmented");
 
-// Chat Elements
+// Chat
 const messagesList = document.getElementById("messagesList");
 const chatForm = document.getElementById("chatForm");
 const chatTextInput = document.getElementById("chatTextInput");
@@ -63,9 +65,8 @@ const editTextarea = document.getElementById("editTextarea");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const saveEditBtn = document.getElementById("saveEditBtn");
 
-// Long-Press Action Sheet Elements
+// Long-Press Action Sheet
 const messageActionModal = document.getElementById("messageActionModal");
-const actionSheetCard = document.getElementById("actionSheetCard");
 const actionCopyBtn = document.getElementById("actionCopyBtn");
 const actionEditBtn = document.getElementById("actionEditBtn");
 const actionDeleteBtn = document.getElementById("actionDeleteBtn");
@@ -86,10 +87,10 @@ let attachedImageData = null;
 let currentEditId = null;
 let cachedAllDocs = [];
 const markedSeenCache = new Set();
-let activeSelectedMessage = null; // Currently targeted message in action sheet
+let activeSelectedMessage = null;
 
 // ==========================================
-// 4. THEME SYSTEM (SAVED IN STORAGE)
+// 4. THEME CONTROLLER
 // ==========================================
 function updateThemeUI(theme) {
   document.documentElement.setAttribute("data-theme", theme);
@@ -104,7 +105,7 @@ if (themeToggleBtn) {
     const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
     const nextTheme = currentTheme === "dark" ? "light" : "dark";
     updateThemeUI(nextTheme);
-    logSystem(`Appearance changed to: ${nextTheme}`);
+    logSystem(`Theme set to: ${nextTheme}`);
   };
 }
 updateThemeUI(document.documentElement.getAttribute("data-theme") || "light");
@@ -146,10 +147,10 @@ function getTargetTopic(recipient, isTest = false) {
 }
 
 // ==========================================
-// 6. CACHE & SERVICE WORKER REFRESH
+// 6. CACHE & SERVICE WORKER
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v1.80...", "warn");
+  logSystem("Purging cache for v1.90...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -167,13 +168,13 @@ if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.80').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=1.90').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("v1.80 downloaded! Updating...", "info");
+          logSystem("v1.90 downloaded! Refreshing...", "info");
           setTimeout(() => window.location.reload(), 800);
         }
       };
@@ -186,9 +187,10 @@ if ('serviceWorker' in navigator) {
 // ==========================================
 function updateUIForRecipient() {
   if (summonTitle) summonTitle.textContent = `Summon ${currentRecipient}`;
-  if (summonSubtitle) summonSubtitle.textContent = `Broadcasts an instant loud notification to ${currentRecipient}'s phone.`;
-  if (sendAlertBtnText) sendAlertBtnText.textContent = `Alert ${currentRecipient}`;
-  logSystem(`Active target: ${currentRecipient} (Topic: ${getTargetTopic(currentRecipient)})`);
+  if (summonSubtitle) summonSubtitle.textContent = `Sends an instant priority alert directly to ${currentRecipient}'s phone.`;
+  if (sendAlertBtnText) sendAlertBtnText.textContent = `Summon ${currentRecipient}`;
+  if (chatRecipientName) chatRecipientName.textContent = currentRecipient;
+  logSystem(`Target: ${currentRecipient} (Topic: ${getTargetTopic(currentRecipient)})`);
 }
 
 function renderRecipientPills() {
@@ -219,31 +221,50 @@ function renderRecipientPills() {
 function setUser(username) {
   currentUser = username;
   localStorage.setItem("summon_user", username);
-  if (currentUserNameEl) {
-    const listenTopic = getTargetTopic(username);
-    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
-  }
+  if (currentUserNameEl) currentUserNameEl.textContent = username;
   renderRecipientPills();
   updateUIForRecipient();
   renderChatMessages();
 }
 
 // ==========================================
-// 8. LONG-PRESS MESSAGE ACTION SHEET SYSTEM
+// 8. TACTILE 3-WAY SEGMENTED CONTROL
+// ==========================================
+if (prioritySegmented) {
+  prioritySegmented.querySelectorAll(".segment-btn").forEach(btn => {
+    btn.onclick = () => {
+      prioritySegmented.querySelectorAll(".segment-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (alertPriority) alertPriority.value = btn.dataset.val;
+    };
+  });
+}
+
+// ==========================================
+// 9. NATIVE BOTTOM NAVIGATION
+// ==========================================
+document.querySelectorAll(".nav-item").forEach(item => {
+  item.onclick = () => {
+    document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+    document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+
+    item.classList.add("active");
+    const target = document.getElementById(item.dataset.tab);
+    if (target) target.classList.add("active");
+  };
+});
+
+// ==========================================
+// 10. LONG-PRESS ACTION SHEET
 // ==========================================
 function openMessageActionSheet(msgData) {
   activeSelectedMessage = msgData;
   const isMe = normalizeUser(msgData.sender) === currentUser;
 
-  // Toggle owner-only options
   if (actionEditBtn) actionEditBtn.style.display = isMe ? "flex" : "none";
   if (actionDeleteBtn) actionDeleteBtn.style.display = isMe ? "flex" : "none";
 
-  // Light haptic feedback if device supports it
-  if (navigator.vibrate) {
-    navigator.vibrate(40);
-  }
-
+  if (navigator.vibrate) navigator.vibrate(35);
   messageActionModal.classList.remove("hidden");
 }
 
@@ -259,7 +280,6 @@ if (messageActionModal) {
   };
 }
 
-// Quick emoji reaction buttons inside the sheet
 document.querySelectorAll(".react-strip-btn").forEach(btn => {
   btn.onclick = async () => {
     if (!activeSelectedMessage) return;
@@ -280,18 +300,16 @@ document.querySelectorAll(".react-strip-btn").forEach(btn => {
   };
 });
 
-// Copy text action
 if (actionCopyBtn) {
   actionCopyBtn.onclick = () => {
     if (activeSelectedMessage && activeSelectedMessage.text) {
       navigator.clipboard.writeText(activeSelectedMessage.text);
-      logSystem("Message copied to clipboard");
+      logSystem("Copied text to clipboard");
     }
     closeMessageActionSheet();
   };
 }
 
-// Edit action
 if (actionEditBtn) {
   actionEditBtn.onclick = () => {
     if (!activeSelectedMessage) return;
@@ -302,20 +320,18 @@ if (actionEditBtn) {
   };
 }
 
-// Delete action
 if (actionDeleteBtn) {
   actionDeleteBtn.onclick = async () => {
     if (!activeSelectedMessage) return;
     const id = activeSelectedMessage.id;
     closeMessageActionSheet();
-    if (confirm("Delete this message for everyone?")) {
+    if (confirm("Delete this message?")) {
       await deleteDoc(doc(db, "messages", id));
       logSystem(`Deleted message ${id}`);
     }
   };
 }
 
-// Attaches long-press listeners safely without blocking scrolling
 function bindLongPressListener(element, msgData) {
   let pressTimer = null;
   let startX = 0;
@@ -326,11 +342,10 @@ function bindLongPressListener(element, msgData) {
     startY = e.touches[0].clientY;
     pressTimer = setTimeout(() => {
       openMessageActionSheet(msgData);
-    }, 450); // 450ms hold trigger
+    }, 450);
   }, { passive: true });
 
   element.addEventListener("touchmove", (e) => {
-    // If finger moves more than 8px, user is scrolling: cancel long press
     const diffX = Math.abs(e.touches[0].clientX - startX);
     const diffY = Math.abs(e.touches[0].clientY - startY);
     if (diffX > 8 || diffY > 8) {
@@ -341,7 +356,6 @@ function bindLongPressListener(element, msgData) {
   element.addEventListener("touchend", () => clearTimeout(pressTimer));
   element.addEventListener("touchcancel", () => clearTimeout(pressTimer));
 
-  // Desktop support: right click opens the action sheet
   element.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     openMessageActionSheet(msgData);
@@ -349,7 +363,7 @@ function bindLongPressListener(element, msgData) {
 }
 
 // ==========================================
-// 9. CHAT RENDERING
+// 11. CHAT RENDERING
 // ==========================================
 function renderChatMessages() {
   if (!messagesList) return;
@@ -366,7 +380,7 @@ function renderChatMessages() {
   messagesList.innerHTML = "";
 
   if (displayDocs.length === 0) {
-    messagesList.innerHTML = `<div class="chat-placeholder">No messages with ${currentRecipient} yet. Say hello! 👋</div>`;
+    messagesList.innerHTML = `<div class="chat-placeholder" style="text-align:center;color:var(--text-muted);margin-top:20px;font-size:0.85rem;">No messages with ${currentRecipient} yet.</div>`;
     return;
   }
 
@@ -389,7 +403,6 @@ function renderChatMessages() {
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
 
-    // Bind Long Press Menu to this bubble
     bindLongPressListener(bubble, data);
 
     if (data.imageUrl) {
@@ -418,7 +431,6 @@ function renderChatMessages() {
     bubble.appendChild(meta);
     wrapper.appendChild(bubble);
 
-    // Reactions display pills
     if (data.reactions && Object.keys(data.reactions).length > 0) {
       const reactBar = document.createElement("div");
       reactBar.className = "reactions-bar";
@@ -427,7 +439,6 @@ function renderChatMessages() {
           const pill = document.createElement("span");
           pill.className = "react-pill";
           pill.textContent = `${emoji} ${users.length}`;
-          // Tapping reaction pill directly toggles it
           pill.onclick = async (e) => {
             e.stopPropagation();
             const currentList = data.reactions[emoji] || [];
@@ -451,19 +462,8 @@ function renderChatMessages() {
 }
 
 // ==========================================
-// 10. NOTIFICATIONS & ACTIONS
+// 12. ALERTS & PUSH NOTIFICATIONS
 // ==========================================
-document.querySelectorAll(".tab").forEach(tab => {
-  tab.onclick = () => {
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
-
-    tab.classList.add("active");
-    const target = document.getElementById(tab.dataset.tab);
-    if (target) target.classList.add("active");
-  };
-});
-
 if (switchBtn) {
   switchBtn.onclick = () => profileModal.classList.remove("hidden");
 }
@@ -509,12 +509,12 @@ if (sendAlertBtn) {
   sendAlertBtn.onclick = async () => {
     const text = alertInput.value.trim();
     if (!text) {
-      alertStatus.textContent = "Please write a message first.";
+      alertStatus.textContent = "Please enter or select a message.";
       return;
     }
 
     sendAlertBtn.disabled = true;
-    alertStatus.textContent = `Buzzing ${currentRecipient}'s phone...`;
+    alertStatus.textContent = `Delivering alert to ${currentRecipient}...`;
 
     sendNtfyNotification(text, alertPriority.value, currentRecipient).catch(err => logSystem(`ntfy err: ${err.message}`, "error"));
 
@@ -644,7 +644,7 @@ if (clearLogsBtn) {
 }
 
 // ==========================================
-// 11. FIRESTORE SYNC
+// 13. FIRESTORE REAL-TIME SYNC
 // ==========================================
 const messagesQuery = query(collection(db, "messages"));
 onSnapshot(messagesQuery, (snapshot) => {
@@ -661,7 +661,7 @@ onSnapshot(messagesQuery, (snapshot) => {
 });
 
 // ==========================================
-// 12. AUTOMATED SELF-TEST
+// 14. COMPREHENSIVE BUG CHECK SUITE
 // ==========================================
 async function runComprehensiveBugCheck() {
   runBugCheckBtn.disabled = true;
@@ -732,7 +732,7 @@ async function runComprehensiveBugCheck() {
   const allPassed = failed === 0;
   summary.className = `test-summary ${allPassed ? 'all-pass' : 'has-fail'}`;
   summary.textContent = allPassed 
-    ? `🎉 All tests passed! Ready to summon.` 
+    ? `🎉 All tests passed! System healthy.` 
     : `⚠️ Diagnostic report: ${passed} passed, ${failed} failed.`;
   bugCheckResults.prepend(summary);
 
@@ -744,5 +744,5 @@ if (runBugCheckBtn) {
   runBugCheckBtn.onclick = runComprehensiveBugCheck;
 }
 
-// Boot up
+// Initialize
 setUser(currentUser);
