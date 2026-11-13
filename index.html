@@ -6,7 +6,7 @@
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <!-- Theme bootstrapper to eliminate white flash -->
+  <!-- Theme bootstrapper -->
   <script>
     (function() {
       const savedTheme = localStorage.getItem('summon_theme') || 
@@ -14,171 +14,176 @@
       document.documentElement.setAttribute('data-theme', savedTheme);
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.80" />
+  <link rel="stylesheet" href="style.css?v=1.90" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
-  <!-- Clean Top Bar: Identity & Quick Profile Switch Only -->
-  <header class="topbar">
-    <div class="user-badge" id="currentUserBadge">
+  <!-- Consolidated Top Bar: Identity & Active Recipient -->
+  <header class="app-header">
+    <button id="switchUserBtn" class="identity-badge" title="Switch your profile">
       <span class="status-dot"></span>
-      <span id="currentUserName">Loading...</span>
+      <span id="currentUserName">Ahmad</span>
+      <span class="chevron">▾</span>
+    </button>
+
+    <div class="recipient-selector-group">
+      <span class="to-label">To:</span>
+      <div class="recipient-pills" id="recipientPillsContainer">
+        <!-- Injected via app.js -->
+      </div>
     </div>
-    <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
   </header>
 
-  <!-- Recipient Selector: Who are you contacting? -->
-  <div class="recipient-bar">
-    <span class="recipient-label">To:</span>
-    <div class="recipient-pills" id="recipientPillsContainer">
-      <!-- Populated dynamically via app.js -->
-    </div>
+  <!-- APP VIEWS CONTAINER -->
+  <div class="views-wrapper">
+    <!-- VIEW 1: SUMMON -->
+    <main id="alertTab" class="view-panel active">
+      <section class="card hero-summon-card">
+        <div class="summon-header-info">
+          <h2 id="summonTitle">Summon Sister</h2>
+          <p id="summonSubtitle" class="subtitle">Sends an instant priority alert directly to her phone.</p>
+        </div>
+
+        <!-- Tactile 3-Way Urgency Slider -->
+        <div class="segmented-control" id="prioritySegmented">
+          <button type="button" class="segment-btn" data-val="default">🔔 Normal</button>
+          <button type="button" class="segment-btn active" data-val="high">🔊 Loud</button>
+          <button type="button" class="segment-btn" data-val="urgent">🚨 Urgent</button>
+          <input type="hidden" id="alertPriority" value="high" />
+        </div>
+
+        <!-- Quick 1-Tap Scenario Chips -->
+        <div class="chips-label">Quick Presets:</div>
+        <div class="preset-chips">
+          <button class="chip" data-msg="Dinner is ready! Come downstairs 🍲">🍲 Dinner</button>
+          <button class="chip" data-msg="Package arrived downstairs for you 📦">📦 Package</button>
+          <button class="chip" data-msg="Need you downstairs right now! 🏃‍♀️">🏃 Urgent</button>
+          <button class="chip" data-msg="Family snacks & tea ready! ☕">☕ Tea / Snacks</button>
+        </div>
+
+        <div class="form-group">
+          <textarea id="alertInput" rows="2" placeholder="Write custom message or tap a preset above..."></textarea>
+        </div>
+
+        <button id="sendAlertBtn" class="primary-btn summon-cta">
+          <span id="sendAlertBtnText">Send Instant Alert</span>
+          <span class="btn-icon">🚀</span>
+        </button>
+
+        <div id="alertStatus" class="status-msg"></div>
+      </section>
+    </main>
+
+    <!-- VIEW 2: CHAT -->
+    <section id="chatTab" class="view-panel">
+      <div class="chat-container">
+        <div class="chat-subbar" id="chatSubbar">
+          Conversation with <strong id="chatRecipientName">Sister</strong>
+        </div>
+
+        <div class="messages-list" id="messagesList">
+          <div class="chat-placeholder">Loading conversation...</div>
+        </div>
+
+        <!-- Image Preview Bar -->
+        <div id="imagePreviewContainer" class="preview-bar hidden">
+          <img id="imagePreview" src="" alt="preview" />
+          <button id="cancelImageBtn" class="pill-btn danger" style="padding: 4px 10px; font-size: 0.78rem;">Remove</button>
+        </div>
+
+        <!-- Input Bar -->
+        <form id="chatForm" class="chat-input-bar">
+          <label for="chatFileInput" class="icon-circle-btn" title="Send Photo">
+            📷
+            <input type="file" id="chatFileInput" accept="image/*" hidden />
+          </label>
+          <textarea id="chatTextInput" rows="1" placeholder="Type a message..."></textarea>
+          <button type="submit" class="send-btn" title="Send">➤</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- VIEW 3: SYSTEM & DEBUG -->
+    <section id="debugTab" class="view-panel">
+      <!-- Quick Settings Card -->
+      <div class="card" style="margin-bottom: 12px;">
+        <h3 class="card-title">Preferences & Version</h3>
+        <div class="settings-list">
+          <div class="setting-item">
+            <span class="setting-name">App Theme</span>
+            <button id="themeToggleBtn" class="pill-btn secondary">🌙 Switch Theme</button>
+          </div>
+          <div class="setting-item">
+            <span class="setting-name">App Version</span>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <span class="version-tag">v1.90</span>
+              <button id="forceUpdateBtn" class="pill-btn secondary">⟳ Update</button>
+            </div>
+          </div>
+          <div class="setting-item">
+            <span class="setting-name">Maintenance</span>
+            <div style="display: flex; gap: 6px;">
+              <button id="wipeAppCacheBtn" class="pill-btn secondary">Purge</button>
+              <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Changelog Card -->
+      <div class="card" style="margin-bottom: 12px;">
+        <h3 class="card-title">Changelog</h3>
+        <div class="changelog-container">
+          <div class="changelog-entry current">
+            <div class="changelog-header">
+              <strong>v1.90</strong> <span class="badge-current">Latest</span>
+            </div>
+            <ul>
+              <li>Native bottom navigation bar for mobile thumb ergonomics.</li>
+              <li>Consolidated compact header saving 60% vertical screen space.</li>
+              <li>Tactile 3-way segmented urgency slider (Normal, Loud, Urgent).</li>
+              <li>iMessage/WhatsApp-style chat bubbles with micro-animations.</li>
+              <li>OLED dark mode and refined typography.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Self-Test & Diagnostics Card -->
+      <div class="card">
+        <h3 class="card-title">Diagnostics & System Tests</h3>
+        <button id="runBugCheckBtn" class="primary-btn" style="margin-bottom: 12px; background: #059669;">
+          🧪 Run Full-Feature Test Mode
+        </button>
+
+        <div id="bugCheckResults" class="test-results-panel hidden"></div>
+        <div class="chips-label" style="margin-top: 8px;">LIVE SYSTEM EVENTS:</div>
+        <div id="debugLogList" class="debug-list"></div>
+      </div>
+    </section>
   </div>
 
-  <!-- Navigation Tabs -->
-  <nav class="nav-tabs">
-    <button class="tab active" data-tab="alertTab">⚡ Summon</button>
-    <button class="tab" data-tab="chatTab">💬 Chat</button>
-    <button class="tab" data-tab="debugTab">🐞 Debug</button>
+  <!-- NATIVE BOTTOM NAVIGATION BAR -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-tab="alertTab">
+      <span class="nav-icon">⚡</span>
+      <span class="nav-label">Summon</span>
+    </button>
+    <button class="nav-item" data-tab="chatTab">
+      <span class="nav-icon">💬</span>
+      <span class="nav-label">Chat</span>
+    </button>
+    <button class="nav-item" data-tab="debugTab">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">System</span>
+    </button>
   </nav>
 
-  <!-- MAIN TAB: SUMMON / INSTANT ALERT -->
-  <main id="alertTab" class="view-panel active">
-    <section class="card hero-card">
-      <h2 id="summonTitle">Summon Downstairs</h2>
-      <p class="subtitle" id="summonSubtitle">Broadcasts an instant loud notification to their phone via ntfy.</p>
-
-      <div class="preset-chips">
-        <button class="chip" data-msg="Dinner is ready! Come downstairs 🍲">🍲 Dinner</button>
-        <button class="chip" data-msg="Package arrived for you downstairs 📦">📦 Package</button>
-        <button class="chip" data-msg="Need you downstairs right now! 🏃‍♀️">🏃 Urgent</button>
-        <button class="chip" data-msg="Family snacks & tea ready! ☕">☕ Tea / Snacks</button>
-      </div>
-
-      <div class="form-group">
-        <label for="alertInput">Custom Message</label>
-        <textarea id="alertInput" rows="3" placeholder="e.g. Come downstairs, dinner is served!"></textarea>
-      </div>
-
-      <div class="priority-selector">
-        <label for="alertPriority">Urgency Level:</label>
-        <select id="alertPriority">
-          <option value="default">Normal (Buzz)</option>
-          <option value="high" selected>High (Loud)</option>
-          <option value="urgent">Max Urgent (Emergency sound)</option>
-        </select>
-      </div>
-
-      <button id="sendAlertBtn" class="primary-btn">
-        <span id="sendAlertBtnText">Send Instant Alert</span> 🚀
-      </button>
-
-      <div id="alertStatus" class="status-msg"></div>
-    </section>
-  </main>
-
-  <!-- CHAT TAB: 1-ON-1 CONVERSATIONS -->
-  <section id="chatTab" class="view-panel">
-    <div class="chat-container">
-      <div class="messages-list" id="messagesList">
-        <div class="chat-placeholder">Loading conversation...</div>
-      </div>
-
-      <!-- Image Preview Container -->
-      <div id="imagePreviewContainer" class="preview-bar hidden">
-        <img id="imagePreview" src="" alt="preview" />
-        <button id="cancelImageBtn" class="pill-btn danger" style="padding: 2px 8px; font-size: 0.75rem;">Remove</button>
-      </div>
-
-      <!-- Chat Input Area -->
-      <form id="chatForm" class="chat-input-bar">
-        <label for="chatFileInput" class="icon-btn" title="Attach Photo">
-          📷
-          <input type="file" id="chatFileInput" accept="image/*" hidden />
-        </label>
-        <textarea id="chatTextInput" rows="1" placeholder="Type a message..."></textarea>
-        <button type="submit" class="send-btn" title="Send">➤</button>
-      </form>
-    </div>
-  </section>
-
-  <!-- DEBUG & SETTINGS TAB -->
-  <section id="debugTab" class="view-panel">
-    <!-- Controls & Appearance Card -->
-    <div class="card debug-card" style="margin-bottom: 14px;">
-      <h3 style="font-size: 0.95rem; margin-bottom: 12px;">App Controls & Theme</h3>
-      <div class="debug-controls-grid">
-        <div class="control-row">
-          <span>Appearance Mode</span>
-          <button id="themeToggleBtn" class="pill-btn secondary">🌙 Switch Theme</button>
-        </div>
-        <div class="control-row">
-          <span>App Version</span>
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <span class="version-tag">v1.80</span>
-            <button id="forceUpdateBtn" class="pill-btn secondary" title="Force refresh and check for code updates">⟳ Check Update</button>
-          </div>
-        </div>
-        <div class="control-row">
-          <span>Maintenance</span>
-          <div style="display: flex; gap: 6px;">
-            <button id="wipeAppCacheBtn" class="pill-btn secondary">Purge Cache</button>
-            <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Version Changelog Card -->
-    <div class="card debug-card" style="margin-bottom: 14px;">
-      <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Version Changelog</h3>
-      <div class="changelog-container">
-        <div class="changelog-entry current">
-          <div class="changelog-header">
-            <strong>v1.80</strong> <span class="badge-current">Latest</span>
-          </div>
-          <ul>
-            <li>Clean topbar with version & dark mode relocated to Debug.</li>
-            <li>WhatsApp-style long-press action menu for reactions, copy, edit & delete.</li>
-            <li>Prevented native text highlighting / magnifier popup on long press.</li>
-            <li>Springy micro-animations, slide-up bottom sheets & touch polish.</li>
-            <li>Added changelog and app control hub.</li>
-          </ul>
-        </div>
-        <div class="changelog-entry">
-          <div class="changelog-header"><strong>v1.70</strong></div>
-          <ul>
-            <li>Added Mom, renamed Brother to Ahmad.</li>
-            <li>Direct PWA redirect hook on notification tap.</li>
-            <li>Persistent Dark & Light mode.</li>
-          </ul>
-        </div>
-        <div class="changelog-entry">
-          <div class="changelog-header"><strong>v1.60</strong></div>
-          <ul>
-            <li>Fixed startup ReferenceError bug.</li>
-            <li>Multi-user private 1-on-1 rooms.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <!-- Diagnostic Self-Test & Logs Card -->
-    <div class="card debug-card">
-      <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Diagnostics & Live Logs</h3>
-      <button id="runBugCheckBtn" class="primary-btn" style="margin-bottom: 12px; padding: 10px 14px; background: #059669; font-size: 0.88rem;">
-        🧪 Run Full-Feature Test Mode
-      </button>
-
-      <div id="bugCheckResults" class="test-results-panel hidden"></div>
-      <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin: 8px 0 4px 0;">SYSTEM ACTIVITY:</div>
-      <div id="debugLogList" class="debug-list"></div>
-    </div>
-  </section>
-
-  <!-- LONG-PRESS MESSAGE ACTION SHEET (WhatsApp Style) -->
+  <!-- LONG-PRESS ACTION SHEET MODAL -->
   <div id="messageActionModal" class="modal-backdrop hidden">
     <div class="action-sheet" id="actionSheetCard">
+      <div class="sheet-grabber"></div>
+
       <!-- Quick Reactions Row -->
       <div class="reaction-strip">
         <button class="react-strip-btn" data-emoji="👍">👍</button>
@@ -189,7 +194,7 @@
         <button class="react-strip-btn" data-emoji="🙏">🙏</button>
       </div>
 
-      <!-- Contextual Action Buttons -->
+      <!-- Contextual Actions -->
       <div class="action-buttons-list">
         <button id="actionCopyBtn" class="action-sheet-btn">
           <span>📋</span> Copy Text
@@ -209,12 +214,20 @@
   <!-- Profile Switcher Modal -->
   <div id="profileModal" class="modal-backdrop hidden">
     <div class="modal-card">
-      <h3>Select Your Identity</h3>
-      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Who is using this phone right now?</p>
+      <div class="modal-title">Who is using this phone?</div>
       <div class="profile-options">
-        <button class="profile-choice" data-user="Ahmad">Ahmad (Downstairs)</button>
-        <button class="profile-choice" data-user="Sister">Sister (Upstairs Room)</button>
-        <button class="profile-choice" data-user="Mom">Mom (Master Bedroom)</button>
+        <button class="profile-choice" data-user="Ahmad">
+          <div class="choice-title">Ahmad</div>
+          <div class="choice-sub">Downstairs</div>
+        </button>
+        <button class="profile-choice" data-user="Sister">
+          <div class="choice-title">Sister</div>
+          <div class="choice-sub">Upstairs Bedroom</div>
+        </button>
+        <button class="profile-choice" data-user="Mom">
+          <div class="choice-title">Mom</div>
+          <div class="choice-sub">Master Bedroom</div>
+        </button>
       </div>
     </div>
   </div>
@@ -222,15 +235,15 @@
   <!-- Edit Message Modal -->
   <div id="editModal" class="modal-backdrop hidden">
     <div class="modal-card">
-      <h3>Edit Message</h3>
+      <div class="modal-title">Edit Message</div>
       <textarea id="editTextarea" rows="3" style="margin-top: 10px;"></textarea>
-      <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+      <div class="modal-actions">
         <button id="cancelEditBtn" class="pill-btn secondary">Cancel</button>
-        <button id="saveEditBtn" class="pill-btn primary-solid">Save Changes</button>
+        <button id="saveEditBtn" class="pill-btn primary-solid">Save</button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.80"></script>
+  <script type="module" src="app.js?v=1.90"></script>
 </body>
 </html>
