@@ -6,7 +6,7 @@
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <!-- Fast Theme Bootstrapper to prevent white flash -->
+  <!-- Theme bootstrapper to eliminate white flash -->
   <script>
     (function() {
       const savedTheme = localStorage.getItem('summon_theme') || 
@@ -14,29 +14,22 @@
       document.documentElement.setAttribute('data-theme', savedTheme);
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.70" />
+  <link rel="stylesheet" href="style.css?v=1.80" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
-  <!-- Top Bar: Identity, Theme Toggle & App Update -->
+  <!-- Clean Top Bar: Identity & Quick Profile Switch Only -->
   <header class="topbar">
     <div class="user-badge" id="currentUserBadge">
       <span class="status-dot"></span>
       <span id="currentUserName">Loading...</span>
     </div>
-    <div class="header-actions">
-      <!-- Dark / Light Mode Toggle Button -->
-      <button id="themeToggleBtn" class="icon-toggle-btn" title="Toggle Dark/Light Mode">🌙</button>
-      <button id="forceUpdateBtn" title="Tap to check for updates" class="version-badge">
-        v1.70 ⟳
-      </button>
-      <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
-    </div>
+    <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
   </header>
 
   <!-- Recipient Selector: Who are you contacting? -->
   <div class="recipient-bar">
-    <span class="recipient-label">Chatting / Alerting:</span>
+    <span class="recipient-label">To:</span>
     <div class="recipient-pills" id="recipientPillsContainer">
       <!-- Populated dynamically via app.js -->
     </div>
@@ -109,30 +102,112 @@
     </div>
   </section>
 
-  <!-- DEBUG & BUG CHECK TAB -->
+  <!-- DEBUG & SETTINGS TAB -->
   <section id="debugTab" class="view-panel">
-    <div class="card debug-card">
-      <div class="debug-header">
-        <h3 style="font-size: 1rem;">System Diagnostics</h3>
-        <div style="display: flex; gap: 6px;">
-          <button id="wipeAppCacheBtn" class="pill-btn" style="background: var(--btn-secondary); color: var(--primary);">Force Refresh</button>
-          <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
+    <!-- Controls & Appearance Card -->
+    <div class="card debug-card" style="margin-bottom: 14px;">
+      <h3 style="font-size: 0.95rem; margin-bottom: 12px;">App Controls & Theme</h3>
+      <div class="debug-controls-grid">
+        <div class="control-row">
+          <span>Appearance Mode</span>
+          <button id="themeToggleBtn" class="pill-btn secondary">🌙 Switch Theme</button>
+        </div>
+        <div class="control-row">
+          <span>App Version</span>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <span class="version-tag">v1.80</span>
+            <button id="forceUpdateBtn" class="pill-btn secondary" title="Force refresh and check for code updates">⟳ Check Update</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <span>Maintenance</span>
+          <div style="display: flex; gap: 6px;">
+            <button id="wipeAppCacheBtn" class="pill-btn secondary">Purge Cache</button>
+            <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
+          </div>
         </div>
       </div>
+    </div>
 
+    <!-- Version Changelog Card -->
+    <div class="card debug-card" style="margin-bottom: 14px;">
+      <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Version Changelog</h3>
+      <div class="changelog-container">
+        <div class="changelog-entry current">
+          <div class="changelog-header">
+            <strong>v1.80</strong> <span class="badge-current">Latest</span>
+          </div>
+          <ul>
+            <li>Clean topbar with version & dark mode relocated to Debug.</li>
+            <li>WhatsApp-style long-press action menu for reactions, copy, edit & delete.</li>
+            <li>Prevented native text highlighting / magnifier popup on long press.</li>
+            <li>Springy micro-animations, slide-up bottom sheets & touch polish.</li>
+            <li>Added changelog and app control hub.</li>
+          </ul>
+        </div>
+        <div class="changelog-entry">
+          <div class="changelog-header"><strong>v1.70</strong></div>
+          <ul>
+            <li>Added Mom, renamed Brother to Ahmad.</li>
+            <li>Direct PWA redirect hook on notification tap.</li>
+            <li>Persistent Dark & Light mode.</li>
+          </ul>
+        </div>
+        <div class="changelog-entry">
+          <div class="changelog-header"><strong>v1.60</strong></div>
+          <ul>
+            <li>Fixed startup ReferenceError bug.</li>
+            <li>Multi-user private 1-on-1 rooms.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagnostic Self-Test & Logs Card -->
+    <div class="card debug-card">
+      <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Diagnostics & Live Logs</h3>
       <button id="runBugCheckBtn" class="primary-btn" style="margin-bottom: 12px; padding: 10px 14px; background: #059669; font-size: 0.88rem;">
         🧪 Run Full-Feature Test Mode
       </button>
 
       <div id="bugCheckResults" class="test-results-panel hidden"></div>
-
-      <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin: 8px 0 4px 0;">LIVE ACTIVITY LOGS:</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin: 8px 0 4px 0;">SYSTEM ACTIVITY:</div>
       <div id="debugLogList" class="debug-list"></div>
     </div>
   </section>
 
-  <!-- Profile Switcher Modal (Ahmad, Sister, Mom) -->
-  <div id="profileModal" class="modal hidden">
+  <!-- LONG-PRESS MESSAGE ACTION SHEET (WhatsApp Style) -->
+  <div id="messageActionModal" class="modal-backdrop hidden">
+    <div class="action-sheet" id="actionSheetCard">
+      <!-- Quick Reactions Row -->
+      <div class="reaction-strip">
+        <button class="react-strip-btn" data-emoji="👍">👍</button>
+        <button class="react-strip-btn" data-emoji="❤️">❤️</button>
+        <button class="react-strip-btn" data-emoji="😂">😂</button>
+        <button class="react-strip-btn" data-emoji="😮">😮</button>
+        <button class="react-strip-btn" data-emoji="😢">😢</button>
+        <button class="react-strip-btn" data-emoji="🙏">🙏</button>
+      </div>
+
+      <!-- Contextual Action Buttons -->
+      <div class="action-buttons-list">
+        <button id="actionCopyBtn" class="action-sheet-btn">
+          <span>📋</span> Copy Text
+        </button>
+        <button id="actionEditBtn" class="action-sheet-btn">
+          <span>✏️</span> Edit Message
+        </button>
+        <button id="actionDeleteBtn" class="action-sheet-btn danger-text">
+          <span>🗑️</span> Delete Message
+        </button>
+      </div>
+
+      <button id="actionCancelBtn" class="action-sheet-close">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Profile Switcher Modal -->
+  <div id="profileModal" class="modal-backdrop hidden">
     <div class="modal-card">
       <h3>Select Your Identity</h3>
       <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Who is using this phone right now?</p>
@@ -145,7 +220,7 @@
   </div>
 
   <!-- Edit Message Modal -->
-  <div id="editModal" class="modal hidden">
+  <div id="editModal" class="modal-backdrop hidden">
     <div class="modal-card">
       <h3>Edit Message</h3>
       <textarea id="editTextarea" rows="3" style="margin-top: 10px;"></textarea>
@@ -156,6 +231,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.70"></script>
+  <script type="module" src="app.js?v=1.80"></script>
 </body>
 </html>
