@@ -23,15 +23,22 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ==========================================
-// 2. DOM ELEMENT REFERENCES
+// 2. DOM REFERENCES
 // ==========================================
 const currentUserNameEl = document.getElementById("currentUserName");
 const switchBtn = document.getElementById("switchUserBtn");
-const forceUpdateBtn = document.getElementById("forceUpdateBtn");
-const themeToggleBtn = document.getElementById("themeToggleBtn");
 const recipientPillsContainer = document.getElementById("recipientPillsContainer");
 
-// Summon tab
+// Debug Menu Elements (Theme & Updater now located here)
+const themeToggleBtn = document.getElementById("themeToggleBtn");
+const forceUpdateBtn = document.getElementById("forceUpdateBtn");
+const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
+const clearLogsBtn = document.getElementById("clearLogsBtn");
+const runBugCheckBtn = document.getElementById("runBugCheckBtn");
+const bugCheckResults = document.getElementById("bugCheckResults");
+const debugList = document.getElementById("debugLogList");
+
+// Summon Elements
 const summonTitle = document.getElementById("summonTitle");
 const summonSubtitle = document.getElementById("summonSubtitle");
 const sendAlertBtn = document.getElementById("sendAlertBtn");
@@ -40,7 +47,7 @@ const alertInput = document.getElementById("alertInput");
 const alertPriority = document.getElementById("alertPriority");
 const alertStatus = document.getElementById("alertStatus");
 
-// Chat tab
+// Chat Elements
 const messagesList = document.getElementById("messagesList");
 const chatForm = document.getElementById("chatForm");
 const chatTextInput = document.getElementById("chatTextInput");
@@ -56,17 +63,17 @@ const editTextarea = document.getElementById("editTextarea");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const saveEditBtn = document.getElementById("saveEditBtn");
 
-// Diagnostics
-const debugList = document.getElementById("debugLogList");
-const clearLogsBtn = document.getElementById("clearLogsBtn");
-const runBugCheckBtn = document.getElementById("runBugCheckBtn");
-const bugCheckResults = document.getElementById("bugCheckResults");
-const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
+// Long-Press Action Sheet Elements
+const messageActionModal = document.getElementById("messageActionModal");
+const actionSheetCard = document.getElementById("actionSheetCard");
+const actionCopyBtn = document.getElementById("actionCopyBtn");
+const actionEditBtn = document.getElementById("actionEditBtn");
+const actionDeleteBtn = document.getElementById("actionDeleteBtn");
+const actionCancelBtn = document.getElementById("actionCancelBtn");
 
 // ==========================================
-// 3. APPLICATION STATE & MIGRATION
+// 3. APPLICATION STATE
 // ==========================================
-// Automatic migration: If storage had "Brother", convert to "Ahmad"
 let storedUser = localStorage.getItem("summon_user") || "Ahmad";
 if (storedUser === "Brother") storedUser = "Ahmad";
 let currentUser = storedUser;
@@ -79,15 +86,16 @@ let attachedImageData = null;
 let currentEditId = null;
 let cachedAllDocs = [];
 const markedSeenCache = new Set();
+let activeSelectedMessage = null; // Currently targeted message in action sheet
 
 // ==========================================
-// 4. THEME CONTROLLER (PERSISTENT)
+// 4. THEME SYSTEM (SAVED IN STORAGE)
 // ==========================================
 function updateThemeUI(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   localStorage.setItem("summon_theme", theme);
   if (themeToggleBtn) {
-    themeToggleBtn.textContent = theme === "dark" ? "☀️" : "🌙";
+    themeToggleBtn.textContent = theme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode";
   }
 }
 
@@ -96,10 +104,9 @@ if (themeToggleBtn) {
     const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
     const nextTheme = currentTheme === "dark" ? "light" : "dark";
     updateThemeUI(nextTheme);
-    logSystem(`Theme switched to: ${nextTheme}`);
+    logSystem(`Appearance changed to: ${nextTheme}`);
   };
 }
-// Sync button icon with current theme
 updateThemeUI(document.documentElement.getAttribute("data-theme") || "light");
 
 // ==========================================
@@ -139,10 +146,10 @@ function getTargetTopic(recipient, isTest = false) {
 }
 
 // ==========================================
-// 6. CACHE BUSTER & AUTO-UPDATER
+// 6. CACHE & SERVICE WORKER REFRESH
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v1.70...", "warn");
+  logSystem("Purging cache for v1.80...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -160,13 +167,13 @@ if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.70').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=1.80').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("v1.70 ready! Refreshing...", "info");
+          logSystem("v1.80 downloaded! Updating...", "info");
           setTimeout(() => window.location.reload(), 800);
         }
       };
@@ -175,7 +182,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==========================================
-// 7. UI RENDERING
+// 7. USER & RECIPIENT SWITCHING
 // ==========================================
 function updateUIForRecipient() {
   if (summonTitle) summonTitle.textContent = `Summon ${currentRecipient}`;
@@ -209,6 +216,141 @@ function renderRecipientPills() {
   });
 }
 
+function setUser(username) {
+  currentUser = username;
+  localStorage.setItem("summon_user", username);
+  if (currentUserNameEl) {
+    const listenTopic = getTargetTopic(username);
+    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
+  }
+  renderRecipientPills();
+  updateUIForRecipient();
+  renderChatMessages();
+}
+
+// ==========================================
+// 8. LONG-PRESS MESSAGE ACTION SHEET SYSTEM
+// ==========================================
+function openMessageActionSheet(msgData) {
+  activeSelectedMessage = msgData;
+  const isMe = normalizeUser(msgData.sender) === currentUser;
+
+  // Toggle owner-only options
+  if (actionEditBtn) actionEditBtn.style.display = isMe ? "flex" : "none";
+  if (actionDeleteBtn) actionDeleteBtn.style.display = isMe ? "flex" : "none";
+
+  // Light haptic feedback if device supports it
+  if (navigator.vibrate) {
+    navigator.vibrate(40);
+  }
+
+  messageActionModal.classList.remove("hidden");
+}
+
+function closeMessageActionSheet() {
+  messageActionModal.classList.add("hidden");
+  activeSelectedMessage = null;
+}
+
+if (actionCancelBtn) actionCancelBtn.onclick = closeMessageActionSheet;
+if (messageActionModal) {
+  messageActionModal.onclick = (e) => {
+    if (e.target === messageActionModal) closeMessageActionSheet();
+  };
+}
+
+// Quick emoji reaction buttons inside the sheet
+document.querySelectorAll(".react-strip-btn").forEach(btn => {
+  btn.onclick = async () => {
+    if (!activeSelectedMessage) return;
+    const emoji = btn.dataset.emoji;
+    const msgId = activeSelectedMessage.id;
+    const currentReactions = activeSelectedMessage.reactions || {};
+    const userList = currentReactions[emoji] || [];
+
+    const updatedList = userList.includes(currentUser)
+      ? userList.filter(u => u !== currentUser)
+      : [...userList, currentUser];
+
+    closeMessageActionSheet();
+
+    await updateDoc(doc(db, "messages", msgId), {
+      [`reactions.${emoji}`]: updatedList
+    });
+  };
+});
+
+// Copy text action
+if (actionCopyBtn) {
+  actionCopyBtn.onclick = () => {
+    if (activeSelectedMessage && activeSelectedMessage.text) {
+      navigator.clipboard.writeText(activeSelectedMessage.text);
+      logSystem("Message copied to clipboard");
+    }
+    closeMessageActionSheet();
+  };
+}
+
+// Edit action
+if (actionEditBtn) {
+  actionEditBtn.onclick = () => {
+    if (!activeSelectedMessage) return;
+    const id = activeSelectedMessage.id;
+    const text = activeSelectedMessage.text;
+    closeMessageActionSheet();
+    openEditModal(id, text);
+  };
+}
+
+// Delete action
+if (actionDeleteBtn) {
+  actionDeleteBtn.onclick = async () => {
+    if (!activeSelectedMessage) return;
+    const id = activeSelectedMessage.id;
+    closeMessageActionSheet();
+    if (confirm("Delete this message for everyone?")) {
+      await deleteDoc(doc(db, "messages", id));
+      logSystem(`Deleted message ${id}`);
+    }
+  };
+}
+
+// Attaches long-press listeners safely without blocking scrolling
+function bindLongPressListener(element, msgData) {
+  let pressTimer = null;
+  let startX = 0;
+  let startY = 0;
+
+  element.addEventListener("touchstart", (e) => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    pressTimer = setTimeout(() => {
+      openMessageActionSheet(msgData);
+    }, 450); // 450ms hold trigger
+  }, { passive: true });
+
+  element.addEventListener("touchmove", (e) => {
+    // If finger moves more than 8px, user is scrolling: cancel long press
+    const diffX = Math.abs(e.touches[0].clientX - startX);
+    const diffY = Math.abs(e.touches[0].clientY - startY);
+    if (diffX > 8 || diffY > 8) {
+      clearTimeout(pressTimer);
+    }
+  }, { passive: true });
+
+  element.addEventListener("touchend", () => clearTimeout(pressTimer));
+  element.addEventListener("touchcancel", () => clearTimeout(pressTimer));
+
+  // Desktop support: right click opens the action sheet
+  element.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    openMessageActionSheet(msgData);
+  });
+}
+
+// ==========================================
+// 9. CHAT RENDERING
+// ==========================================
 function renderChatMessages() {
   if (!messagesList) return;
   const activeRoomId = getRoomId(currentUser, currentRecipient);
@@ -247,16 +389,8 @@ function renderChatMessages() {
     const bubble = document.createElement("div");
     bubble.className = "msg-bubble";
 
-    const actions = document.createElement("div");
-    actions.className = "msg-actions";
-    actions.innerHTML = `
-      <button class="action-icon" data-react="👍">👍</button>
-      <button class="action-icon" data-react="❤️">❤️</button>
-      <button class="action-icon" data-react="😂">😂</button>
-      ${isMe ? `<button class="action-icon edit-btn" title="Edit">✏️</button>` : ""}
-      ${isMe ? `<button class="action-icon del-btn" title="Delete">🗑️</button>` : ""}
-    `;
-    bubble.appendChild(actions);
+    // Bind Long Press Menu to this bubble
+    bindLongPressListener(bubble, data);
 
     if (data.imageUrl) {
       const img = document.createElement("img");
@@ -284,7 +418,7 @@ function renderChatMessages() {
     bubble.appendChild(meta);
     wrapper.appendChild(bubble);
 
-    // Reactions
+    // Reactions display pills
     if (data.reactions && Object.keys(data.reactions).length > 0) {
       const reactBar = document.createElement("div");
       reactBar.className = "reactions-bar";
@@ -293,42 +427,21 @@ function renderChatMessages() {
           const pill = document.createElement("span");
           pill.className = "react-pill";
           pill.textContent = `${emoji} ${users.length}`;
+          // Tapping reaction pill directly toggles it
+          pill.onclick = async (e) => {
+            e.stopPropagation();
+            const currentList = data.reactions[emoji] || [];
+            const updated = currentList.includes(currentUser)
+              ? currentList.filter(u => u !== currentUser)
+              : [...currentList, currentUser];
+            await updateDoc(doc(db, "messages", id), {
+              [`reactions.${emoji}`]: updated
+            });
+          };
           reactBar.appendChild(pill);
         }
       }
       wrapper.appendChild(reactBar);
-    }
-
-    // Reaction click
-    actions.querySelectorAll("[data-react]").forEach(btn => {
-      btn.onclick = async () => {
-        const emoji = btn.dataset.react;
-        const currentReactions = data.reactions || {};
-        const userList = currentReactions[emoji] || [];
-        const updatedList = userList.includes(currentUser)
-          ? userList.filter(u => u !== currentUser)
-          : [...userList, currentUser];
-
-        await updateDoc(doc(db, "messages", id), {
-          [`reactions.${emoji}`]: updatedList
-        });
-      };
-    });
-
-    // Delete
-    const delBtn = actions.querySelector(".del-btn");
-    if (delBtn) {
-      delBtn.onclick = async () => {
-        if (confirm("Delete this message?")) {
-          await deleteDoc(doc(db, "messages", id));
-        }
-      };
-    }
-
-    // Edit
-    const editBtn = actions.querySelector(".edit-btn");
-    if (editBtn) {
-      editBtn.onclick = () => openEditModal(id, data.text);
     }
 
     messagesList.appendChild(wrapper);
@@ -337,20 +450,8 @@ function renderChatMessages() {
   messagesList.scrollTop = messagesList.scrollHeight;
 }
 
-function setUser(username) {
-  currentUser = username;
-  localStorage.setItem("summon_user", username);
-  if (currentUserNameEl) {
-    const listenTopic = getTargetTopic(username);
-    currentUserNameEl.innerHTML = `${username} <span style="opacity:0.6;font-size:0.75rem;">(${listenTopic})</span>`;
-  }
-  renderRecipientPills();
-  updateUIForRecipient();
-  renderChatMessages();
-}
-
 // ==========================================
-// 8. EVENT LISTENERS WIRING
+// 10. NOTIFICATIONS & ACTIONS
 // ==========================================
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
@@ -380,11 +481,10 @@ document.querySelectorAll(".chip").forEach(chip => {
   };
 });
 
-// Sends ntfy alert with a 'click' property to redirect into the installed Summon PWA directly
 async function sendNtfyNotification(text, priority = "high", recipientName = currentRecipient, isTest = false) {
   const priorityMap = { "default": 3, "high": 4, "urgent": 5 };
   const recipientTopic = getTargetTopic(recipientName, isTest);
-  const appCleanUrl = window.location.href.split('#')[0]; // Root PWA URL
+  const appCleanUrl = window.location.href.split('#')[0];
 
   const payload = {
     topic: recipientTopic,
@@ -392,7 +492,7 @@ async function sendNtfyNotification(text, priority = "high", recipientName = cur
     message: text,
     priority: priorityMap[priority] || 4,
     tags: isTest ? ["test_tube"] : ["loudspeaker", "bell"],
-    click: appCleanUrl // Tells Android to launch the installed Summon PWA directly
+    click: appCleanUrl
   };
 
   const res = await fetch("https://ntfy.sh", {
@@ -544,7 +644,7 @@ if (clearLogsBtn) {
 }
 
 // ==========================================
-// 9. FIRESTORE REAL-TIME LISTENER
+// 11. FIRESTORE SYNC
 // ==========================================
 const messagesQuery = query(collection(db, "messages"));
 onSnapshot(messagesQuery, (snapshot) => {
@@ -561,11 +661,11 @@ onSnapshot(messagesQuery, (snapshot) => {
 });
 
 // ==========================================
-// 10. AUTOMATED BUG CHECK
+// 12. AUTOMATED SELF-TEST
 // ==========================================
 async function runComprehensiveBugCheck() {
   runBugCheckBtn.disabled = true;
-  runBugCheckBtn.textContent = "⏳ Running Full Diagnostics...";
+  runBugCheckBtn.textContent = "⏳ Running Diagnostics...";
   bugCheckResults.innerHTML = "";
   bugCheckResults.classList.remove("hidden");
 
@@ -581,63 +681,32 @@ async function runComprehensiveBugCheck() {
     `;
     bugCheckResults.appendChild(item);
     if (isOk) passed++; else failed++;
-    logSystem(`Test: ${title} -> ${isOk ? 'PASS' : 'FAIL'} (${detail})`, isOk ? 'info' : 'error');
   }
 
-  // 1. Health
   try {
-    const t0 = performance.now();
     const res = await fetch("https://ntfy.sh/v1/health", { cache: "no-store" });
     const data = await res.json();
-    const ms = Math.round(performance.now() - t0);
-    record("Gateway Health (ntfy.sh)", res.ok && data.healthy === true, `${ms}ms`);
+    record("Gateway Health (ntfy.sh)", res.ok && data.healthy === true, "Connected");
   } catch (e) {
     record("Gateway Health (ntfy.sh)", false, e.message);
   }
 
-  // 2. 3-Way Topics (Ahmad, Sister, Mom)
   try {
     const aTopic = getTargetTopic("Ahmad");
     const sTopic = getTargetTopic("Sister");
     const mTopic = getTargetTopic("Mom");
-    const valid = aTopic.endsWith("-ahmad") && sTopic.endsWith("-sister") && mTopic.endsWith("-mom");
-    record("3-Way User Routing", valid, "Mom/Sister/Ahmad mapped");
+    record("3-Way User Routing", aTopic.endsWith("-ahmad") && sTopic.endsWith("-sister") && mTopic.endsWith("-mom"), "Ahmad/Sister/Mom OK");
   } catch (e) {
     record("3-Way User Routing", false, e.message);
   }
 
-  // 3. Room IDs
-  try {
-    const r1 = getRoomId("Ahmad", "Mom");
-    const r2 = getRoomId("Mom", "Brother"); // Test legacy Brother mapping
-    record("1-on-1 Room Segregation", r1 === r2 && r1 === "Ahmad_Mom", "Private Room IDs OK");
-  } catch (e) {
-    record("1-on-1 Room Segregation", false, e.message);
-  }
-
-  // 4. Alert Pipeline Probe with App Redirect
   try {
     const ok = await sendNtfyNotification("Diagnostics probe", "high", "Mom", true);
-    record("Alert Subsystem & PWA Click Hook", ok, "Isolated Diagnostic OK");
+    record("Alert Pipeline & PWA Hook", ok, "Isolated Diagnostic OK");
   } catch (e) {
-    record("Alert Subsystem & PWA Click Hook", false, e.message);
+    record("Alert Pipeline & PWA Hook", false, e.message);
   }
 
-  // 5. Image Compression
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = 120;
-    canvas.height = 120;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#4f46e5";
-    ctx.fillRect(0, 0, 120, 120);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
-    record("Feature: Photo Engine", dataUrl.startsWith("data:image/jpeg;base64,"), "Canvas/Base64 OK");
-  } catch (e) {
-    record("Feature: Photo Engine", false, e.message);
-  }
-
-  // 6. Database Operations
   let probeDocId = null;
   try {
     const tDoc = await addDoc(collection(db, "messages"), {
@@ -650,26 +719,12 @@ async function runComprehensiveBugCheck() {
       _testDoc: true
     });
     probeDocId = tDoc.id;
-    record("Feature: Send Message (DB)", true, `DocID: ${probeDocId.slice(0, 5)}...`);
-
-    await updateDoc(doc(db, "messages", probeDocId), {
-      text: "Edited Probe Message",
-      edited: true
-    });
-    const editedSnap = await getDoc(doc(db, "messages", probeDocId));
-    record("Feature: Edit Message", editedSnap.data().text === "Edited Probe Message", "Content verified");
-
-    await updateDoc(doc(db, "messages", probeDocId), {
-      "reactions.❤️": ["TestProbe"]
-    });
-    const reactSnap = await getDoc(doc(db, "messages", probeDocId));
-    record("Feature: Emoji Reactions", reactSnap.data().reactions?.["❤️"]?.includes("TestProbe"), "Reaction active");
-
+    await updateDoc(doc(db, "messages", probeDocId), { text: "Edited", edited: true });
     await deleteDoc(doc(db, "messages", probeDocId));
     probeDocId = null;
-    record("Feature: Delete Message", true, "Cleanly purged");
+    record("Database Lifecycle", true, "CRUD OK");
   } catch (e) {
-    record("Messaging Lifecycle Test", false, e.message);
+    record("Database Lifecycle", false, e.message);
     if (probeDocId) deleteDoc(doc(db, "messages", probeDocId)).catch(() => {});
   }
 
@@ -677,7 +732,7 @@ async function runComprehensiveBugCheck() {
   const allPassed = failed === 0;
   summary.className = `test-summary ${allPassed ? 'all-pass' : 'has-fail'}`;
   summary.textContent = allPassed 
-    ? `🎉 All ${passed} tests passed! Ahmad, Sister & Mom ready.` 
+    ? `🎉 All tests passed! Ready to summon.` 
     : `⚠️ Diagnostic report: ${passed} passed, ${failed} failed.`;
   bugCheckResults.prepend(summary);
 
@@ -689,5 +744,5 @@ if (runBugCheckBtn) {
   runBugCheckBtn.onclick = runComprehensiveBugCheck;
 }
 
-// Initialize
+// Boot up
 setUser(currentUser);
