@@ -1,16 +1,41 @@
-:root {
+/* ==========================================================
+   THEME PALETTES (LIGHT & DARK)
+========================================================== */
+:root, [data-theme="light"] {
   --bg-primary: #f8fafc;
   --bg-card: #ffffff;
   --bg-alt: #f1f5f9;
+  --border: #e2e8f0;
+  --border-input: #cbd5e1;
   --text-main: #0f172a;
   --text-muted: #64748b;
   --primary: #4f46e5;
   --primary-hover: #4338ca;
-  --danger: #ef4444;
+  --btn-secondary: #e0e7ff;
   --bubble-me: #4f46e5;
   --bubble-me-text: #ffffff;
   --bubble-them: #ffffff;
   --bubble-them-text: #0f172a;
+  --danger: #ef4444;
+  --radius: 16px;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #0b0f19;
+  --bg-card: #111827;
+  --bg-alt: #1e293b;
+  --border: #334155;
+  --border-input: #475569;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --primary: #6366f1;
+  --primary-hover: #4f46e5;
+  --btn-secondary: #1e1b4b;
+  --bubble-me: #6366f1;
+  --bubble-me-text: #ffffff;
+  --bubble-them: #1e293b;
+  --bubble-them-text: #f8fafc;
+  --danger: #f87171;
   --radius: 16px;
 }
 
@@ -20,6 +45,7 @@
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 html, body {
@@ -35,14 +61,14 @@ body {
   flex-direction: column;
 }
 
-/* Top bar */
+/* Header */
 .topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: calc(env(safe-area-inset-top) + 8px) 14px 8px 14px;
   background: var(--bg-card);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -62,14 +88,44 @@ body {
   flex-shrink: 0;
 }
 
-/* Multi-User Recipient Selector Bar */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-toggle-btn {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  font-size: 0.95rem;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.version-badge {
+  font-size: 0.72rem;
+  color: var(--primary);
+  font-weight: 700;
+  background: var(--btn-secondary);
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+/* Recipient Bar */
 .recipient-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 14px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -87,27 +143,26 @@ body {
 .recipient-pill {
   padding: 4px 12px;
   border-radius: 16px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-card);
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-main);
   cursor: pointer;
-  transition: all 0.15s ease;
 }
 
 .recipient-pill.active {
   background: var(--primary);
   color: #ffffff;
   border-color: var(--primary);
-  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
 }
 
-/* Navigation Tabs */
+/* Nav Tabs */
 .nav-tabs {
   display: flex;
   background: var(--bg-card);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -149,8 +204,8 @@ body {
   background: var(--bg-card);
   border-radius: var(--radius);
   padding: 18px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 
 .hero-card h2 {
@@ -173,7 +228,8 @@ body {
 
 .chip {
   background: var(--bg-alt);
-  border: 1px solid #cbd5e1;
+  color: var(--text-main);
+  border: 1px solid var(--border-input);
   border-radius: 16px;
   padding: 6px 12px;
   font-size: 0.82rem;
@@ -185,8 +241,9 @@ textarea, select, input {
   font-size: 16px !important;
   width: 100%;
   border-radius: 12px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--border-input);
+  background: var(--bg-card);
+  color: var(--text-main);
   outline: none;
 }
 
@@ -237,8 +294,9 @@ select {
   cursor: pointer;
 }
 
-.pill-btn.secondary { background: var(--bg-alt); color: var(--text-main); }
-.pill-btn.danger { background: #fee2e2; color: var(--danger); }
+.pill-btn.secondary { background: var(--bg-alt); color: var(--text-main); border: 1px solid var(--border); }
+.pill-btn.danger { background: #fee2e2; color: #dc2626; }
+.pill-btn.primary-solid { background: var(--primary); color: #ffffff; }
 
 .status-msg {
   text-align: center;
@@ -259,7 +317,7 @@ select {
   flex-direction: column;
   height: 100%;
   width: 100%;
-  background: #f1f5f9;
+  background: var(--bg-primary);
 }
 
 .messages-list {
@@ -269,6 +327,13 @@ select {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.chat-placeholder {
+  text-align: center;
+  color: var(--text-muted);
+  margin-top: 20px;
+  font-size: 0.9rem;
 }
 
 .msg-wrapper {
@@ -298,6 +363,7 @@ select {
 .msg-wrapper.them .msg-bubble {
   background: var(--bubble-them);
   color: var(--bubble-them-text);
+  border: 1px solid var(--border);
   border-bottom-left-radius: 2px;
 }
 
@@ -326,8 +392,9 @@ select {
 }
 
 .react-pill {
-  background: #fff;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-input);
   border-radius: 10px;
   padding: 2px 6px;
   font-size: 0.68rem;
@@ -338,10 +405,10 @@ select {
   position: absolute;
   top: -14px;
   right: 6px;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-card);
+  border: 1px solid var(--border-input);
   border-radius: 12px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   padding: 2px 4px;
   gap: 4px;
   z-index: 10;
@@ -365,8 +432,8 @@ select {
   align-items: center;
   gap: 8px;
   padding: 8px 12px calc(env(safe-area-inset-bottom) + 8px) 12px;
-  background: #ffffff;
-  border-top: 1px solid #cbd5e1;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -377,7 +444,8 @@ select {
 
 .chat-input-bar textarea {
   flex: 1;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-input);
+  background: var(--bg-alt);
   padding: 8px 12px;
   border-radius: 18px;
   height: 38px;
@@ -399,7 +467,8 @@ select {
   display: flex;
   align-items: center;
   padding: 6px 12px;
-  background: #e2e8f0;
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border);
   gap: 8px;
 }
 
@@ -415,8 +484,15 @@ select {
   flex-direction: column;
 }
 
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
 .debug-list {
-  background: #0f172a;
+  background: #020617;
   color: #38bdf8;
   font-family: monospace;
   font-size: 0.75rem;
@@ -432,8 +508,8 @@ select {
 .log-entry.warn { color: #facc15; }
 
 .test-results-panel {
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px;
   margin-bottom: 10px;
@@ -452,8 +528,8 @@ select {
   font-weight: 600;
 }
 
-.test-item.pass { background: #dcfce7; color: #15803d; }
-.test-item.fail { background: #fee2e2; color: #b91c1c; }
+.test-item.pass { background: #064e3b; color: #6ee7b7; }
+.test-item.fail { background: #7f1d1d; color: #fca5a5; }
 
 .test-summary {
   font-size: 0.82rem;
@@ -463,14 +539,14 @@ select {
   border-radius: 8px;
   margin-top: 6px;
 }
-.test-summary.all-pass { background: #bbf7d0; color: #14532d; }
-.test-summary.has-fail { background: #fecaca; color: #7f1d1d; }
+.test-summary.all-pass { background: #065f46; color: #a7f3d0; }
+.test-summary.has-fail { background: #991b1b; color: #fecaca; }
 
 /* Modals */
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -479,7 +555,9 @@ select {
 }
 
 .modal-card {
-  background: #ffffff;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
   width: 100%;
@@ -496,7 +574,8 @@ select {
 .profile-choice {
   padding: 12px;
   background: var(--bg-alt);
-  border: 1px solid #cbd5e1;
+  color: var(--text-main);
+  border: 1px solid var(--border-input);
   border-radius: 12px;
   font-weight: 600;
   font-size: 0.95rem;
