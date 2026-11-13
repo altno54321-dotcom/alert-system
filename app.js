@@ -17,20 +17,21 @@ const firebaseConfig = {
 };
 
 const BASE_TOPIC = "alert-system4565";
-const ALL_USERS = ["Brother", "Sister", "Mom"];
+const ALL_USERS = ["Ahmad", "Sister", "Mom"];
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ==========================================
-// 2. DOM ELEMENT REFERENCES (Declared First)
+// 2. DOM ELEMENT REFERENCES
 // ==========================================
 const currentUserNameEl = document.getElementById("currentUserName");
 const switchBtn = document.getElementById("switchUserBtn");
 const forceUpdateBtn = document.getElementById("forceUpdateBtn");
+const themeToggleBtn = document.getElementById("themeToggleBtn");
 const recipientPillsContainer = document.getElementById("recipientPillsContainer");
 
-// Summon tab elements
+// Summon tab
 const summonTitle = document.getElementById("summonTitle");
 const summonSubtitle = document.getElementById("summonSubtitle");
 const sendAlertBtn = document.getElementById("sendAlertBtn");
@@ -39,7 +40,7 @@ const alertInput = document.getElementById("alertInput");
 const alertPriority = document.getElementById("alertPriority");
 const alertStatus = document.getElementById("alertStatus");
 
-// Chat tab elements
+// Chat tab
 const messagesList = document.getElementById("messagesList");
 const chatForm = document.getElementById("chatForm");
 const chatTextInput = document.getElementById("chatTextInput");
@@ -55,7 +56,7 @@ const editTextarea = document.getElementById("editTextarea");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const saveEditBtn = document.getElementById("saveEditBtn");
 
-// Diagnostics elements
+// Diagnostics
 const debugList = document.getElementById("debugLogList");
 const clearLogsBtn = document.getElementById("clearLogsBtn");
 const runBugCheckBtn = document.getElementById("runBugCheckBtn");
@@ -63,17 +64,46 @@ const bugCheckResults = document.getElementById("bugCheckResults");
 const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
 
 // ==========================================
-// 3. APPLICATION STATE
+// 3. APPLICATION STATE & MIGRATION
 // ==========================================
-let currentUser = localStorage.getItem("summon_user") || "Brother";
-let currentRecipient = localStorage.getItem("summon_recipient") || (currentUser === "Brother" ? "Sister" : "Brother");
+// Automatic migration: If storage had "Brother", convert to "Ahmad"
+let storedUser = localStorage.getItem("summon_user") || "Ahmad";
+if (storedUser === "Brother") storedUser = "Ahmad";
+let currentUser = storedUser;
+
+let storedRecipient = localStorage.getItem("summon_recipient") || (currentUser === "Ahmad" ? "Sister" : "Ahmad");
+if (storedRecipient === "Brother") storedRecipient = "Ahmad";
+let currentRecipient = storedRecipient;
+
 let attachedImageData = null;
 let currentEditId = null;
 let cachedAllDocs = [];
 const markedSeenCache = new Set();
 
 // ==========================================
-// 4. LOGGING & HELPERS
+// 4. THEME CONTROLLER (PERSISTENT)
+// ==========================================
+function updateThemeUI(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("summon_theme", theme);
+  if (themeToggleBtn) {
+    themeToggleBtn.textContent = theme === "dark" ? "☀️" : "🌙";
+  }
+}
+
+if (themeToggleBtn) {
+  themeToggleBtn.onclick = () => {
+    const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    updateThemeUI(nextTheme);
+    logSystem(`Theme switched to: ${nextTheme}`);
+  };
+}
+// Sync button icon with current theme
+updateThemeUI(document.documentElement.getAttribute("data-theme") || "light");
+
+// ==========================================
+// 5. LOGGING & HELPERS
 // ==========================================
 function logSystem(msg, type = "info") {
   const timestamp = new Date().toLocaleTimeString();
@@ -95,20 +125,24 @@ function getMillis(ts) {
   return new Date(ts).getTime() || Date.now();
 }
 
+function normalizeUser(u) {
+  return u === "Brother" ? "Ahmad" : u;
+}
+
 function getRoomId(userA, userB) {
-  return [userA, userB].sort().join("_");
+  return [normalizeUser(userA), normalizeUser(userB)].sort().join("_");
 }
 
 function getTargetTopic(recipient, isTest = false) {
   if (isTest) return `${BASE_TOPIC}-diagnostics`;
-  return `${BASE_TOPIC}-${recipient.toLowerCase()}`;
+  return `${BASE_TOPIC}-${normalizeUser(recipient).toLowerCase()}`;
 }
 
 // ==========================================
-// 5. CACHE BUSTER & AUTO-UPDATER
+// 6. CACHE BUSTER & AUTO-UPDATER
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v1.60...", "warn");
+  logSystem("Purging cache for v1.70...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -126,13 +160,13 @@ if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.60').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=1.70').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("v1.60 ready! Refreshing...", "info");
+          logSystem("v1.70 ready! Refreshing...", "info");
           setTimeout(() => window.location.reload(), 800);
         }
       };
@@ -141,7 +175,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==========================================
-// 6. UI RENDERING FUNCTIONS
+// 7. UI RENDERING
 // ==========================================
 function updateUIForRecipient() {
   if (summonTitle) summonTitle.textContent = `Summon ${currentRecipient}`;
@@ -180,7 +214,7 @@ function renderChatMessages() {
   const activeRoomId = getRoomId(currentUser, currentRecipient);
 
   const roomDocs = cachedAllDocs.filter(d => {
-    const msgRoom = d.roomId || "Brother_Sister";
+    const msgRoom = (d.roomId || "Ahmad_Sister").replace("Brother", "Ahmad");
     return msgRoom === activeRoomId;
   });
 
@@ -190,15 +224,14 @@ function renderChatMessages() {
   messagesList.innerHTML = "";
 
   if (displayDocs.length === 0) {
-    messagesList.innerHTML = `<div class="chat-placeholder" style="text-align: center; color: #94a3b8; margin-top: 20px; font-size: 0.9rem;">No messages with ${currentRecipient} yet. Say hello! 👋</div>`;
+    messagesList.innerHTML = `<div class="chat-placeholder">No messages with ${currentRecipient} yet. Say hello! 👋</div>`;
     return;
   }
 
   displayDocs.forEach((data) => {
     const id = data.id;
-    const isMe = data.sender === currentUser;
+    const isMe = normalizeUser(data.sender) === currentUser;
 
-    // Auto mark as seen
     if (!isMe && (!data.seenBy || !data.seenBy.includes(currentUser))) {
       if (!markedSeenCache.has(id)) {
         markedSeenCache.add(id);
@@ -241,7 +274,7 @@ function renderChatMessages() {
     let timeStr = new Date(data.millis).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     let seenIndicator = "";
     if (isMe) {
-      const isSeenByOther = data.seenBy && data.seenBy.some(u => u !== currentUser);
+      const isSeenByOther = data.seenBy && data.seenBy.some(u => normalizeUser(u) !== currentUser);
       seenIndicator = isSeenByOther ? " • Seen ✓✓" : " • Sent ✓";
     }
 
@@ -317,10 +350,8 @@ function setUser(username) {
 }
 
 // ==========================================
-// 7. EVENT LISTENERS WIRING
+// 8. EVENT LISTENERS WIRING
 // ==========================================
-
-// Tab navigation
 document.querySelectorAll(".tab").forEach(tab => {
   tab.onclick = () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -332,7 +363,6 @@ document.querySelectorAll(".tab").forEach(tab => {
   };
 });
 
-// Profile switcher modal
 if (switchBtn) {
   switchBtn.onclick = () => profileModal.classList.remove("hidden");
 }
@@ -344,24 +374,25 @@ document.querySelectorAll(".profile-choice").forEach(btn => {
   };
 });
 
-// Preset Chips
 document.querySelectorAll(".chip").forEach(chip => {
   chip.onclick = () => {
     if (alertInput) alertInput.value = chip.dataset.msg;
   };
 });
 
-// Summon Alert
+// Sends ntfy alert with a 'click' property to redirect into the installed Summon PWA directly
 async function sendNtfyNotification(text, priority = "high", recipientName = currentRecipient, isTest = false) {
   const priorityMap = { "default": 3, "high": 4, "urgent": 5 };
   const recipientTopic = getTargetTopic(recipientName, isTest);
+  const appCleanUrl = window.location.href.split('#')[0]; // Root PWA URL
 
   const payload = {
     topic: recipientTopic,
     title: isTest ? "🧪 System Diagnostic Alert" : `Message from ${currentUser}!`,
     message: text,
     priority: priorityMap[priority] || 4,
-    tags: isTest ? ["test_tube"] : ["loudspeaker", "bell"]
+    tags: isTest ? ["test_tube"] : ["loudspeaker", "bell"],
+    click: appCleanUrl // Tells Android to launch the installed Summon PWA directly
   };
 
   const res = await fetch("https://ntfy.sh", {
@@ -408,7 +439,6 @@ if (sendAlertBtn) {
   };
 }
 
-// Chat photo picker & compression
 if (chatFileInput) {
   chatFileInput.onchange = (e) => {
     const file = e.target.files[0];
@@ -445,7 +475,6 @@ if (cancelImageBtn) {
   };
 }
 
-// Chat form submission
 if (chatForm) {
   chatForm.onsubmit = async (e) => {
     e.preventDefault();
@@ -478,7 +507,6 @@ if (chatForm) {
   };
 }
 
-// Edit Modal
 function openEditModal(id, currentText) {
   currentEditId = id;
   editTextarea.value = currentText;
@@ -516,7 +544,7 @@ if (clearLogsBtn) {
 }
 
 // ==========================================
-// 8. FIRESTORE REAL-TIME LISTENER
+// 9. FIRESTORE REAL-TIME LISTENER
 // ==========================================
 const messagesQuery = query(collection(db, "messages"));
 onSnapshot(messagesQuery, (snapshot) => {
@@ -533,7 +561,7 @@ onSnapshot(messagesQuery, (snapshot) => {
 });
 
 // ==========================================
-// 9. AUTOMATED MULTI-USER BUG CHECK
+// 10. AUTOMATED BUG CHECK
 // ==========================================
 async function runComprehensiveBugCheck() {
   runBugCheckBtn.disabled = true;
@@ -556,7 +584,7 @@ async function runComprehensiveBugCheck() {
     logSystem(`Test: ${title} -> ${isOk ? 'PASS' : 'FAIL'} (${detail})`, isOk ? 'info' : 'error');
   }
 
-  // 1. Health Check
+  // 1. Health
   try {
     const t0 = performance.now();
     const res = await fetch("https://ntfy.sh/v1/health", { cache: "no-store" });
@@ -567,32 +595,32 @@ async function runComprehensiveBugCheck() {
     record("Gateway Health (ntfy.sh)", false, e.message);
   }
 
-  // 2. 3-Way Topics
+  // 2. 3-Way Topics (Ahmad, Sister, Mom)
   try {
-    const bTopic = getTargetTopic("Brother");
+    const aTopic = getTargetTopic("Ahmad");
     const sTopic = getTargetTopic("Sister");
     const mTopic = getTargetTopic("Mom");
-    const valid = bTopic.endsWith("-brother") && sTopic.endsWith("-sister") && mTopic.endsWith("-mom");
-    record("3-Way User Routing", valid, "Mom/Sister/Brother mapped");
+    const valid = aTopic.endsWith("-ahmad") && sTopic.endsWith("-sister") && mTopic.endsWith("-mom");
+    record("3-Way User Routing", valid, "Mom/Sister/Ahmad mapped");
   } catch (e) {
     record("3-Way User Routing", false, e.message);
   }
 
   // 3. Room IDs
   try {
-    const r1 = getRoomId("Brother", "Mom");
-    const r2 = getRoomId("Mom", "Brother");
-    record("1-on-1 Room Segregation", r1 === r2 && r1 === "Brother_Mom", "Private Room IDs OK");
+    const r1 = getRoomId("Ahmad", "Mom");
+    const r2 = getRoomId("Mom", "Brother"); // Test legacy Brother mapping
+    record("1-on-1 Room Segregation", r1 === r2 && r1 === "Ahmad_Mom", "Private Room IDs OK");
   } catch (e) {
     record("1-on-1 Room Segregation", false, e.message);
   }
 
-  // 4. Alert Pipeline Probe
+  // 4. Alert Pipeline Probe with App Redirect
   try {
     const ok = await sendNtfyNotification("Diagnostics probe", "high", "Mom", true);
-    record("Alert Delivery Subsystem", ok, "Isolated Diagnostic OK");
+    record("Alert Subsystem & PWA Click Hook", ok, "Isolated Diagnostic OK");
   } catch (e) {
-    record("Alert Delivery Subsystem", false, e.message);
+    record("Alert Subsystem & PWA Click Hook", false, e.message);
   }
 
   // 5. Image Compression
@@ -609,7 +637,7 @@ async function runComprehensiveBugCheck() {
     record("Feature: Photo Engine", false, e.message);
   }
 
-  // 6. DB Lifecycle (Write, Edit, React, Delete)
+  // 6. Database Operations
   let probeDocId = null;
   try {
     const tDoc = await addDoc(collection(db, "messages"), {
@@ -649,7 +677,7 @@ async function runComprehensiveBugCheck() {
   const allPassed = failed === 0;
   summary.className = `test-summary ${allPassed ? 'all-pass' : 'has-fail'}`;
   summary.textContent = allPassed 
-    ? `🎉 All ${passed} tests passed! Mom, Sister & Brother ready.` 
+    ? `🎉 All ${passed} tests passed! Ahmad, Sister & Mom ready.` 
     : `⚠️ Diagnostic report: ${passed} passed, ${failed} failed.`;
   bugCheckResults.prepend(summary);
 
@@ -661,7 +689,5 @@ if (runBugCheckBtn) {
   runBugCheckBtn.onclick = runComprehensiveBugCheck;
 }
 
-// ==========================================
-// 10. INITIALIZE APP (Runs Safely After Everything Is Wired)
-// ==========================================
+// Initialize
 setUser(currentUser);
