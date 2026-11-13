@@ -6,19 +6,29 @@
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#4f46e5" />
-  <link rel="stylesheet" href="style.css?v=1.60" />
+  <!-- Fast Theme Bootstrapper to prevent white flash -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('summon_theme') || 
+        (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css?v=1.70" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
-  <!-- Top Bar: Identity & App Update -->
+  <!-- Top Bar: Identity, Theme Toggle & App Update -->
   <header class="topbar">
     <div class="user-badge" id="currentUserBadge">
       <span class="status-dot"></span>
       <span id="currentUserName">Loading...</span>
     </div>
-    <div class="header-actions" style="display: flex; align-items: center; gap: 6px;">
-      <button id="forceUpdateBtn" title="Tap to check for updates" style="font-size: 0.72rem; color: #4f46e5; font-weight: 700; background: #e0e7ff; padding: 4px 8px; border-radius: 10px; border: 1px solid #c7d2fe; cursor: pointer;">
-        v1.60 ⟳
+    <div class="header-actions">
+      <!-- Dark / Light Mode Toggle Button -->
+      <button id="themeToggleBtn" class="icon-toggle-btn" title="Toggle Dark/Light Mode">🌙</button>
+      <button id="forceUpdateBtn" title="Tap to check for updates" class="version-badge">
+        v1.70 ⟳
       </button>
       <button id="switchUserBtn" class="pill-btn secondary">Switch Profile</button>
     </div>
@@ -43,7 +53,7 @@
   <main id="alertTab" class="view-panel active">
     <section class="card hero-card">
       <h2 id="summonTitle">Summon Downstairs</h2>
-      <p class="subtitle" id="summonSubtitle">Broadcasts an instant loud notification to her phone via ntfy.</p>
+      <p class="subtitle" id="summonSubtitle">Broadcasts an instant loud notification to their phone via ntfy.</p>
 
       <div class="preset-chips">
         <button class="chip" data-msg="Dinner is ready! Come downstairs 🍲">🍲 Dinner</button>
@@ -78,7 +88,7 @@
   <section id="chatTab" class="view-panel">
     <div class="chat-container">
       <div class="messages-list" id="messagesList">
-        <div class="chat-placeholder" style="text-align: center; color: #94a3b8; margin-top: 20px; font-size: 0.9rem;">Loading conversation...</div>
+        <div class="chat-placeholder">Loading conversation...</div>
       </div>
 
       <!-- Image Preview Container -->
@@ -102,10 +112,10 @@
   <!-- DEBUG & BUG CHECK TAB -->
   <section id="debugTab" class="view-panel">
     <div class="card debug-card">
-      <div class="debug-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <div class="debug-header">
         <h3 style="font-size: 1rem;">System Diagnostics</h3>
         <div style="display: flex; gap: 6px;">
-          <button id="wipeAppCacheBtn" class="pill-btn" style="background: #e0e7ff; color: #4338ca;">Force Refresh</button>
+          <button id="wipeAppCacheBtn" class="pill-btn" style="background: var(--btn-secondary); color: var(--primary);">Force Refresh</button>
           <button id="clearLogsBtn" class="pill-btn danger">Clear Logs</button>
         </div>
       </div>
@@ -116,18 +126,18 @@
 
       <div id="bugCheckResults" class="test-results-panel hidden"></div>
 
-      <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin: 8px 0 4px 0;">LIVE ACTIVITY LOGS:</div>
+      <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin: 8px 0 4px 0;">LIVE ACTIVITY LOGS:</div>
       <div id="debugLogList" class="debug-list"></div>
     </div>
   </section>
 
-  <!-- Profile Switcher Modal (3 Users) -->
+  <!-- Profile Switcher Modal (Ahmad, Sister, Mom) -->
   <div id="profileModal" class="modal hidden">
     <div class="modal-card">
       <h3>Select Your Identity</h3>
-      <p style="color: #64748b; font-size: 0.85rem; margin-top: 4px;">Who is using this phone right now?</p>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Who is using this phone right now?</p>
       <div class="profile-options">
-        <button class="profile-choice" data-user="Brother">Brother (Downstairs)</button>
+        <button class="profile-choice" data-user="Ahmad">Ahmad (Downstairs)</button>
         <button class="profile-choice" data-user="Sister">Sister (Upstairs Room)</button>
         <button class="profile-choice" data-user="Mom">Mom (Master Bedroom)</button>
       </div>
@@ -141,11 +151,11 @@
       <textarea id="editTextarea" rows="3" style="margin-top: 10px;"></textarea>
       <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
         <button id="cancelEditBtn" class="pill-btn secondary">Cancel</button>
-        <button id="saveEditBtn" class="pill-btn" style="background: #4f46e5; color: white;">Save Changes</button>
+        <button id="saveEditBtn" class="pill-btn primary-solid">Save Changes</button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.60"></script>
+  <script type="module" src="app.js?v=1.70"></script>
 </body>
 </html>
