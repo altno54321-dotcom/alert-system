@@ -1,12 +1,12 @@
 /* ==========================================================
-   MODERN DESIGN TOKENS (LIGHT & TRUE DARK)
+   THEME PALETTES
 ========================================================== */
 :root, [data-theme="light"] {
   --bg-app: #f4f6fb;
   --bg-card: #ffffff;
   --bg-alt: #eef2f7;
   --border: rgba(15, 23, 42, 0.08);
-  --border-input: #d1d5db;
+  --border-input: #cbd5e1;
   --text-main: #0f172a;
   --text-muted: #64748b;
   --primary: #4f46e5;
@@ -27,7 +27,7 @@
   --border: rgba(255, 255, 255, 0.08);
   --border-input: #334155;
   --text-main: #f8fafc;
-  --text-muted: #94a3b8;
+  --text-muted: #94a3af;
   --primary: #6366f1;
   --primary-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   --bubble-me: #6366f1;
@@ -62,17 +62,21 @@ body {
 }
 
 /* ==========================================================
-   CONSOLIDATED TOP HEADER
+   FIXED CRISP HEADER (NO BLUR OVERLAP ON NOTCH/ISLAND)
 ========================================================== */
 .app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: calc(env(safe-area-inset-top) + 8px) 14px 8px 14px;
+  /* Extra clearance on iPhones so notch/Dynamic Island never overlaps buttons */
+  padding-top: max(env(safe-area-inset-top), 48px);
+  padding-bottom: 10px;
+  padding-left: 16px;
+  padding-right: 16px;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  z-index: 20;
+  z-index: 30;
 }
 
 .identity-badge {
@@ -82,9 +86,9 @@ body {
   background: var(--bg-alt);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   color: var(--text-main);
-  font-size: 0.88rem;
+  font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -122,7 +126,7 @@ body {
 }
 
 .recipient-pill {
-  padding: 6px 12px;
+  padding: 6px 13px;
   border-radius: 16px;
   border: 1px solid var(--border-input);
   background: var(--bg-card);
@@ -137,7 +141,7 @@ body {
   background: var(--primary);
   color: #fff;
   border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.3);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
 }
 
 /* ==========================================================
@@ -166,7 +170,7 @@ body {
 
 .card {
   background: var(--bg-card);
-  border-radius: 20px;
+  border-radius: 22px;
   padding: 18px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -178,9 +182,7 @@ body {
   margin-bottom: 12px;
 }
 
-/* ==========================================================
-   SUMMON VIEW OVERHAUL
-========================================================== */
+/* Summon View */
 .hero-summon-card {
   box-shadow: var(--shadow-md);
 }
@@ -198,7 +200,6 @@ body {
   margin-bottom: 16px;
 }
 
-/* Tactile 3-Way Segmented Urgency Slider */
 .segmented-control {
   display: flex;
   background: var(--bg-alt);
@@ -210,10 +211,10 @@ body {
 
 .segment-btn {
   flex: 1;
-  padding: 8px 0;
+  padding: 9px 0;
   border: none;
   background: none;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 700;
   color: var(--text-muted);
   border-radius: 10px;
@@ -248,8 +249,8 @@ body {
   color: var(--text-main);
   border: 1px solid var(--border-input);
   border-radius: 14px;
-  padding: 7px 12px;
-  font-size: 0.82rem;
+  padding: 8px 13px;
+  font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -296,7 +297,7 @@ textarea {
 }
 
 /* ==========================================================
-   CHAT VIEW (WHATSAPP/IMESSAGE STYLE)
+   CHAT VIEW & 1-TAP QUICK REPLIES
 ========================================================== */
 #chatTab {
   padding: 0;
@@ -332,12 +333,6 @@ textarea {
   display: flex;
   flex-direction: column;
   max-width: 80%;
-  animation: msgPop 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes msgPop {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .msg-wrapper.me { align-self: flex-end; }
@@ -404,7 +399,35 @@ textarea {
   cursor: pointer;
 }
 
-/* Chat Input Bar (Native Mobile Feel) */
+/* 1-Tap Quick Replies Bar */
+.quick-replies-bar {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.quick-replies-bar::-webkit-scrollbar { display: none; }
+
+.quick-reply-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border-input);
+  color: var(--text-main);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quick-reply-btn:active { transform: scale(0.95); }
+
+/* Chat Input Bar */
 .chat-input-bar {
   display: flex;
   align-items: center;
@@ -421,9 +444,6 @@ textarea {
   padding: 6px;
   border-radius: 50%;
   background: var(--bg-alt);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .chat-input-bar textarea {
@@ -444,12 +464,9 @@ textarea {
   border-radius: 50%;
   width: 36px;
   height: 36px;
-  font-size: 0.95rem;
   cursor: pointer;
   flex-shrink: 0;
 }
-
-.send-btn:active { transform: scale(0.9); }
 
 .preview-bar {
   display: flex;
@@ -466,7 +483,7 @@ textarea {
 }
 
 /* ==========================================================
-   NATIVE BOTTOM NAVIGATION BAR
+   BOTTOM NAVIGATION
 ========================================================== */
 .bottom-nav {
   display: flex;
@@ -494,7 +511,6 @@ textarea {
 .nav-icon {
   font-size: 1.25rem;
   margin-bottom: 2px;
-  transition: transform 0.12s ease;
 }
 
 .nav-label {
@@ -506,12 +522,8 @@ textarea {
   color: var(--primary);
 }
 
-.nav-item.active .nav-icon {
-  transform: translateY(-2px);
-}
-
 /* ==========================================================
-   ACTION SHEET & MODALS
+   MODALS & ACTION SHEET
 ========================================================== */
 .modal-backdrop {
   position: fixed;
@@ -522,7 +534,6 @@ textarea {
   align-items: flex-end;
   justify-content: center;
   z-index: 200;
-  animation: fadeIn 0.15s ease-out;
 }
 
 .action-sheet {
@@ -534,7 +545,6 @@ textarea {
   padding: 12px 18px calc(env(safe-area-inset-bottom) + 14px) 18px;
   border: 1px solid var(--border);
   box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
-  animation: slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .sheet-grabber {
@@ -544,11 +554,6 @@ textarea {
   border-radius: 10px;
   margin: 0 auto 14px auto;
   opacity: 0.7;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
 }
 
 .reaction-strip {
@@ -566,8 +571,6 @@ textarea {
   font-size: 1.6rem;
   cursor: pointer;
 }
-
-.react-strip-btn:active { transform: scale(1.35); }
 
 .action-buttons-list {
   display: flex;
@@ -591,7 +594,6 @@ textarea {
   cursor: pointer;
 }
 
-.action-sheet-btn:active { transform: scale(0.98); }
 .action-sheet-btn.danger-text { color: var(--danger); }
 
 .action-sheet-close {
@@ -605,7 +607,6 @@ textarea {
   cursor: pointer;
 }
 
-/* Modals */
 .modal-card {
   background: var(--bg-card);
   color: var(--text-main);
@@ -640,7 +641,6 @@ textarea {
   cursor: pointer;
 }
 
-.profile-choice:active { transform: scale(0.98); }
 .choice-title { font-weight: 700; font-size: 0.95rem; }
 .choice-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 
@@ -664,22 +664,22 @@ textarea {
 .pill-btn.danger { background: #fee2e2; color: #dc2626; }
 .pill-btn.primary-solid { background: var(--primary); color: #fff; }
 
-/* Settings / Changelog */
 .settings-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .setting-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
+  padding-bottom: 8px;
   border-bottom: 1px solid var(--border);
-  font-size: 0.85rem;
-  font-weight: 600;
 }
+
+.setting-name { font-size: 0.88rem; font-weight: 700; }
+.setting-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
 
 .version-tag {
   font-size: 0.75rem;
@@ -784,3 +784,94 @@ textarea {
 .test-summary.has-fail { background: #991b1b; color: #fecaca; }
 
 .hidden { display: none !important; }
+
+/* ==========================================================
+   👓 SIMPLIFY MODE (ACCESSIBLE, LARGE, CLEAN & DECLUTTERED)
+========================================================== */
+[data-simplify="true"] {
+  --radius: 22px;
+}
+
+/* Remove visual noise */
+[data-simplify="true"] .subtitle,
+[data-simplify="true"] .chips-label,
+[data-simplify="true"] .to-label,
+[data-simplify="true"] .chat-subbar,
+[data-simplify="true"] .setting-hint {
+  display: none !important;
+}
+
+/* Bigger Header */
+[data-simplify="true"] .app-header {
+  padding-bottom: 14px;
+}
+
+[data-simplify="true"] .identity-badge {
+  font-size: 1.15rem;
+  padding: 10px 18px;
+}
+
+[data-simplify="true"] .recipient-pill {
+  font-size: 1.05rem;
+  padding: 9px 18px;
+}
+
+/* Massive, Easy-to-Tap Summon View */
+[data-simplify="true"] .hero-summon-card h2 {
+  font-size: 1.85rem;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+[data-simplify="true"] .segment-btn {
+  font-size: 1.1rem;
+  padding: 12px 0;
+}
+
+[data-simplify="true"] .preset-chips {
+  gap: 10px;
+}
+
+[data-simplify="true"] .chip {
+  font-size: 1.15rem;
+  padding: 14px 18px;
+  flex: 1 1 45%;
+  text-align: center;
+}
+
+[data-simplify="true"] textarea {
+  font-size: 19px !important;
+  padding: 16px;
+}
+
+[data-simplify="true"] .summon-cta {
+  padding: 20px;
+  font-size: 1.3rem;
+  border-radius: 20px;
+}
+
+/* Highly Legible Chat Bubbles */
+[data-simplify="true"] .msg-bubble {
+  font-size: 1.25rem;
+  padding: 14px 18px;
+  line-height: 1.45;
+}
+
+[data-simplify="true"] .msg-meta {
+  font-size: 0.82rem;
+  margin-top: 6px;
+}
+
+[data-simplify="true"] .quick-reply-btn {
+  font-size: 1.05rem;
+  padding: 10px 16px;
+}
+
+/* Accessible Navigation */
+[data-simplify="true"] .bottom-nav .nav-icon {
+  font-size: 1.55rem;
+}
+
+[data-simplify="true"] .bottom-nav .nav-label {
+  font-size: 0.88rem;
+}
