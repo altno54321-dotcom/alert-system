@@ -23,7 +23,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ==========================================
-// 2. DOM ELEMENT REFERENCES
+// 2. DOM REFERENCES
 // ==========================================
 const currentUserNameEl = document.getElementById("currentUserName");
 const switchBtn = document.getElementById("switchUserBtn");
@@ -74,6 +74,13 @@ const actionEditBtn = document.getElementById("actionEditBtn");
 const actionDeleteBtn = document.getElementById("actionDeleteBtn");
 const actionCancelBtn = document.getElementById("actionCancelBtn");
 
+// Fullscreen Lightbox
+const imageLightboxModal = document.getElementById("imageLightboxModal");
+const lightboxImg = document.getElementById("lightboxImg");
+const lightboxCloseBtn = document.getElementById("lightboxCloseBtn");
+const lightboxDownloadBtn = document.getElementById("lightboxDownloadBtn");
+const lightboxBody = document.getElementById("lightboxBody");
+
 // ==========================================
 // 3. APPLICATION STATE
 // ==========================================
@@ -90,9 +97,57 @@ let currentEditId = null;
 let cachedAllDocs = [];
 const markedSeenCache = new Set();
 let activeSelectedMessage = null;
+let isLongPressActive = false; // Flag to prevent tap-to-preview when holding down
 
 // ==========================================
-// 4. SYNTHESIZED DOORBELL AUDIO CHIME (v2.00)
+// 4. FULL-SCREEN LIGHTBOX & DOWNLOADER (v2.10)
+// ==========================================
+function openImageLightbox(imgSrc) {
+  if (isLongPressActive) return; // Do not open if user was long-pressing
+  lightboxImg.src = imgSrc;
+  imageLightboxModal.classList.remove("hidden");
+}
+
+function closeImageLightbox() {
+  imageLightboxModal.classList.add("hidden");
+  lightboxImg.src = "";
+}
+
+if (lightboxCloseBtn) lightboxCloseBtn.onclick = closeImageLightbox;
+if (lightboxBody) {
+  lightboxBody.onclick = (e) => {
+    if (e.target === lightboxBody) closeImageLightbox();
+  };
+}
+
+// Convert Base64 Data URL to Blob & Trigger Native File Download
+if (lightboxDownloadBtn) {
+  lightboxDownloadBtn.onclick = async () => {
+    const src = lightboxImg.src;
+    if (!src) return;
+
+    try {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = `summon-photo-${Date.now()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      logSystem("Image downloaded to device");
+    } catch (err) {
+      logSystem(`Download error: ${err.message}`, "error");
+      window.open(src, "_blank");
+    }
+  };
+}
+
+// ==========================================
+// 5. AUDIO CHIME
 // ==========================================
 function playDoorbellChime() {
   try {
@@ -105,20 +160,17 @@ function playDoorbellChime() {
       const gain = ctx.createGain();
       osc.type = "sine";
       osc.frequency.setValueAtTime(freq, startTime);
-
       gain.gain.setValueAtTime(0.28, startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-
       osc.connect(gain);
       gain.connect(ctx.destination);
-
       osc.start(startTime);
       osc.stop(startTime + duration);
     }
 
     const now = ctx.currentTime;
-    playTone(659.25, now, 0.7);        // Note E5 (Ding)
-    playTone(523.25, now + 0.35, 0.9); // Note C5 (Dong)
+    playTone(659.25, now, 0.7);
+    playTone(523.25, now + 0.35, 0.9);
   } catch (e) {
     console.warn("Audio chime failed", e);
   }
@@ -132,7 +184,7 @@ if (testChimeBtn) {
 }
 
 // ==========================================
-// 5. 👓 SIMPLIFY MODE CONTROLLER (v2.00)
+// 6. SIMPLIFY & THEME CONTROLLERS
 // ==========================================
 function updateSimplifyUI(isSimplify) {
   if (isSimplify) {
@@ -156,14 +208,10 @@ if (simplifyToggleBtn) {
   simplifyToggleBtn.onclick = () => {
     const currentlyOn = document.documentElement.getAttribute("data-simplify") === "true";
     updateSimplifyUI(!currentlyOn);
-    logSystem(`Simplify mode set to: ${!currentlyOn}`);
   };
 }
 updateSimplifyUI(localStorage.getItem("summon_simplify") === "true");
 
-// ==========================================
-// 6. THEME CONTROLLER
-// ==========================================
 function updateThemeUI(theme) {
   document.documentElement.setAttribute("data-theme", theme);
   localStorage.setItem("summon_theme", theme);
@@ -177,7 +225,6 @@ if (themeToggleBtn) {
     const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
     const nextTheme = currentTheme === "dark" ? "light" : "dark";
     updateThemeUI(nextTheme);
-    logSystem(`Theme set to: ${nextTheme}`);
   };
 }
 updateThemeUI(document.documentElement.getAttribute("data-theme") || "light");
@@ -222,7 +269,7 @@ function getTargetTopic(recipient, isTest = false) {
 // 8. CACHE & SERVICE WORKER REFRESH
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v2.00...", "warn");
+  logSystem("Purging cache for v2.10...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -240,13 +287,13 @@ if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=2.00').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=2.10').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("v2.00 installed! Refreshing...", "info");
+          logSystem("v2.10 installed! Refreshing...", "info");
           setTimeout(() => window.location.reload(), 800);
         }
       };
@@ -262,7 +309,6 @@ function updateUIForRecipient() {
   if (summonSubtitle) summonSubtitle.textContent = `Sends an instant priority alert directly to ${currentRecipient}'s phone.`;
   if (sendAlertBtnText) sendAlertBtnText.textContent = `Summon ${currentRecipient}`;
   if (chatRecipientName) chatRecipientName.textContent = currentRecipient;
-  logSystem(`Target: ${currentRecipient} (Topic: ${getTargetTopic(currentRecipient)})`);
 }
 
 function renderRecipientPills() {
@@ -310,12 +356,11 @@ if (prioritySegmented) {
   });
 }
 
-// Bottom Nav Navigation
+// Bottom Nav
 document.querySelectorAll(".nav-item").forEach(item => {
   item.onclick = () => {
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
     document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
-
     item.classList.add("active");
     const target = document.getElementById(item.dataset.tab);
     if (target) target.classList.add("active");
@@ -326,6 +371,7 @@ document.querySelectorAll(".nav-item").forEach(item => {
 // 10. LONG-PRESS ACTION SHEET
 // ==========================================
 function openMessageActionSheet(msgData) {
+  isLongPressActive = true;
   activeSelectedMessage = msgData;
   const isMe = normalizeUser(msgData.sender) === currentUser;
 
@@ -339,6 +385,7 @@ function openMessageActionSheet(msgData) {
 function closeMessageActionSheet() {
   messageActionModal.classList.add("hidden");
   activeSelectedMessage = null;
+  setTimeout(() => { isLongPressActive = false; }, 200);
 }
 
 if (actionCancelBtn) actionCancelBtn.onclick = closeMessageActionSheet;
@@ -431,7 +478,7 @@ function bindLongPressListener(element, msgData) {
 }
 
 // ==========================================
-// 11. 1-TAP QUICK REPLIES CONTROLLER (v2.00)
+// 11. 1-TAP QUICK REPLIES
 // ==========================================
 document.querySelectorAll(".quick-reply-btn").forEach(btn => {
   btn.onclick = async () => {
@@ -458,7 +505,7 @@ document.querySelectorAll(".quick-reply-btn").forEach(btn => {
 });
 
 // ==========================================
-// 12. CHAT RENDERING
+// 12. CHAT RENDERING WITH SYMMETRICAL IMAGE FRAMING
 // ==========================================
 function renderChatMessages() {
   if (!messagesList) return;
@@ -496,36 +543,63 @@ function renderChatMessages() {
     wrapper.className = `msg-wrapper ${isMe ? "me" : "them"}`;
 
     const bubble = document.createElement("div");
-    bubble.className = "msg-bubble";
+    bubble.className = `msg-bubble ${data.imageUrl ? 'has-image' : ''}`;
 
     bindLongPressListener(bubble, data);
 
-    if (data.imageUrl) {
-      const img = document.createElement("img");
-      img.src = data.imageUrl;
-      img.className = "msg-img";
-      bubble.appendChild(img);
-    }
-
-    if (data.text) {
-      const txt = document.createElement("p");
-      txt.textContent = data.text;
-      bubble.appendChild(txt);
-    }
-
-    let timeStr = new Date(data.millis).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeStr = new Date(data.millis).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     let seenIndicator = "";
     if (isMe) {
       const isSeenByOther = data.seenBy && data.seenBy.some(u => normalizeUser(u) !== currentUser);
       seenIndicator = isSeenByOther ? " • Seen ✓✓" : " • Sent ✓";
     }
 
-    const meta = document.createElement("div");
-    meta.className = "msg-meta";
-    meta.textContent = `${timeStr}${data.edited ? " (edited)" : ""}${seenIndicator}`;
-    bubble.appendChild(meta);
+    // IMAGE ATTACHMENT
+    if (data.imageUrl) {
+      const imgContainer = document.createElement("div");
+      imgContainer.className = "msg-img-container";
+
+      const img = document.createElement("img");
+      img.src = data.imageUrl;
+      img.className = "msg-img";
+      img.alt = "Shared image";
+
+      // Tap image to open full-screen lightbox
+      img.onclick = (e) => {
+        e.stopPropagation();
+        openImageLightbox(data.imageUrl);
+      };
+
+      imgContainer.appendChild(img);
+
+      // If no text caption, float the timestamp directly on the image
+      if (!data.text) {
+        const floatMeta = document.createElement("div");
+        floatMeta.className = "floating-meta";
+        floatMeta.textContent = `${timeStr}${seenIndicator}`;
+        imgContainer.appendChild(floatMeta);
+      }
+
+      bubble.appendChild(imgContainer);
+    }
+
+    // TEXT CONTENT
+    if (data.text) {
+      const txt = document.createElement("p");
+      txt.className = data.imageUrl ? "msg-caption" : "";
+      txt.textContent = data.text;
+      bubble.appendChild(txt);
+
+      // Standard timestamp below text
+      const meta = document.createElement("div");
+      meta.className = "msg-meta";
+      meta.textContent = `${timeStr}${data.edited ? " (edited)" : ""}${seenIndicator}`;
+      bubble.appendChild(meta);
+    }
+
     wrapper.appendChild(bubble);
 
+    // Reactions
     if (data.reactions && Object.keys(data.reactions).length > 0) {
       const reactBar = document.createElement("div");
       reactBar.className = "reactions-bar";
@@ -557,7 +631,7 @@ function renderChatMessages() {
 }
 
 // ==========================================
-// 13. ALERTS & PUSH NOTIFICATIONS
+// 13. ALERTS & PUSH
 // ==========================================
 if (switchBtn) {
   switchBtn.onclick = () => profileModal.classList.remove("hidden");
@@ -611,9 +685,7 @@ if (sendAlertBtn) {
     sendAlertBtn.disabled = true;
     alertStatus.textContent = `Delivering alert to ${currentRecipient}...`;
 
-    // Play chime sound
     playDoorbellChime();
-
     sendNtfyNotification(text, alertPriority.value, currentRecipient).catch(err => logSystem(`ntfy err: ${err.message}`, "error"));
 
     try {
@@ -648,14 +720,14 @@ if (chatFileInput) {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        const MAX_WIDTH = 600;
+        const MAX_WIDTH = 800; // Crisp high-res display
         const scaleSize = MAX_WIDTH / img.width;
         canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
         canvas.height = (img.width > MAX_WIDTH) ? (img.height * scaleSize) : img.height;
         
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        attachedImageData = canvas.toDataURL("image/jpeg", 0.6);
+        attachedImageData = canvas.toDataURL("image/jpeg", 0.72);
         imagePreview.src = attachedImageData;
         imagePreviewContainer.classList.remove("hidden");
       };
@@ -759,7 +831,7 @@ onSnapshot(messagesQuery, (snapshot) => {
 });
 
 // ==========================================
-// 15. COMPREHENSIVE BUG CHECK SUITE
+// 15. AUTOMATED BUG CHECK
 // ==========================================
 async function runComprehensiveBugCheck() {
   runBugCheckBtn.disabled = true;
@@ -830,7 +902,7 @@ async function runComprehensiveBugCheck() {
   const allPassed = failed === 0;
   summary.className = `test-summary ${allPassed ? 'all-pass' : 'has-fail'}`;
   summary.textContent = allPassed 
-    ? `🎉 All tests passed! v2.00 healthy.` 
+    ? `🎉 All tests passed! v2.10 ready.` 
     : `⚠️ Diagnostic report: ${passed} passed, ${failed} failed.`;
   bugCheckResults.prepend(summary);
 
