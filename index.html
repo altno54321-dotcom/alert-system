@@ -9,7 +9,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-  <!-- Immediate Theme & Simplify Mode Bootstrapper -->
   <script>
     (function() {
       const savedTheme = localStorage.getItem('summon_theme') || 
@@ -21,11 +20,11 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="style.css?v=2.00" />
+  <link rel="stylesheet" href="style.css?v=2.10" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
-  <!-- Solid, Notch-Safe Top Header -->
+  <!-- Notch-Safe Header -->
   <header class="app-header">
     <button id="switchUserBtn" class="identity-badge" title="Switch your profile">
       <span class="status-dot"></span>
@@ -51,7 +50,6 @@
           <p id="summonSubtitle" class="subtitle">Sends an instant priority alert directly to her phone.</p>
         </div>
 
-        <!-- Tactile 3-Way Urgency Slider -->
         <div class="segmented-control" id="prioritySegmented">
           <button type="button" class="segment-btn" data-val="default">🔔 Normal</button>
           <button type="button" class="segment-btn active" data-val="high">🔊 Loud</button>
@@ -59,7 +57,6 @@
           <input type="hidden" id="alertPriority" value="high" />
         </div>
 
-        <!-- Quick Presets -->
         <div class="chips-label">Quick Presets:</div>
         <div class="preset-chips">
           <button class="chip" data-msg="Dinner is ready! Come downstairs 🍲">🍲 Dinner</button>
@@ -92,7 +89,7 @@
           <div class="chat-placeholder">Loading conversation...</div>
         </div>
 
-        <!-- 1-Tap Quick Responses Bar for Easy Messaging -->
+        <!-- 1-Tap Quick Responses Bar -->
         <div class="quick-replies-bar">
           <button class="quick-reply-btn" data-reply="On my way! 🏃‍♀️">🏃 On my way!</button>
           <button class="quick-reply-btn" data-reply="Give me 5 mins ⏳">⏳ 5 mins</button>
@@ -100,7 +97,7 @@
           <button class="quick-reply-btn" data-reply="Can't right now ❌">❌ Can't now</button>
         </div>
 
-        <!-- Image Preview Bar -->
+        <!-- Image Upload Preview Bar -->
         <div id="imagePreviewContainer" class="preview-bar hidden">
           <img id="imagePreview" src="" alt="preview" />
           <button id="cancelImageBtn" class="pill-btn danger" style="padding: 4px 10px; font-size: 0.78rem;">Remove</button>
@@ -120,7 +117,6 @@
 
     <!-- VIEW 3: SYSTEM & ACCESSIBILITY -->
     <section id="debugTab" class="view-panel">
-      <!-- Accessibility & Settings Card -->
       <div class="card" style="margin-bottom: 12px;">
         <h3 class="card-title">Accessibility & Display</h3>
         <div class="settings-list">
@@ -142,7 +138,7 @@
           <div class="setting-item">
             <span class="setting-name">App Version</span>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <span class="version-tag">v2.00</span>
+              <span class="version-tag">v2.10</span>
               <button id="forceUpdateBtn" class="pill-btn secondary">⟳ Update</button>
             </div>
           </div>
@@ -158,29 +154,26 @@
 
       <!-- Changelog Card -->
       <div class="card" style="margin-bottom: 12px;">
-        <h3 class="card-title">Version 2.00 Milestones</h3>
+        <h3 class="card-title">Changelog</h3>
         <div class="changelog-container">
           <div class="changelog-entry current">
             <div class="changelog-header">
-              <strong>v2.00</strong> <span class="badge-current">Major Release</span>
+              <strong>v2.10</strong> <span class="badge-current">Latest</span>
             </div>
             <ul>
-              <li><strong>Fixed iPhone status bar blur:</strong> Notch-safe header with zero visual overlap.</li>
-              <li><strong>👓 Simplify Mode:</strong> High-contrast large text and clean layout for low vision.</li>
-              <li><strong>1-Tap Quick Replies:</strong> Answer summons without typing.</li>
-              <li><strong>Synthesized Doorbell Chime:</strong> Audio chime feedback on summons.</li>
+              <li><strong>Perfect Image Framing:</strong> Equal 4px borders on all sides with floating glass timestamps.</li>
+              <li><strong>Full-Screen Photo Viewer:</strong> Tap any image to expand with pinch-zoom support.</li>
+              <li><strong>1-Tap Image Download:</strong> Save photos directly to your device.</li>
             </ul>
           </div>
         </div>
       </div>
 
-      <!-- Self-Test & Diagnostics Card -->
       <div class="card">
         <h3 class="card-title">Diagnostics & System Tests</h3>
         <button id="runBugCheckBtn" class="primary-btn" style="margin-bottom: 12px; background: #059669;">
           🧪 Run Full-Feature Test Mode
         </button>
-
         <div id="bugCheckResults" class="test-results-panel hidden"></div>
         <div class="chips-label" style="margin-top: 8px;">LIVE SYSTEM EVENTS:</div>
         <div id="debugLogList" class="debug-list"></div>
@@ -203,6 +196,19 @@
       <span class="nav-label">System</span>
     </button>
   </nav>
+
+  <!-- FULL-SCREEN IMAGE VIEWER MODAL (LIGHTBOX) -->
+  <div id="imageLightboxModal" class="lightbox-modal hidden">
+    <div class="lightbox-header">
+      <button id="lightboxCloseBtn" class="lightbox-icon-btn" title="Close">✕</button>
+      <button id="lightboxDownloadBtn" class="lightbox-action-btn" title="Download image">
+        <span>⬇️</span> Download
+      </button>
+    </div>
+    <div class="lightbox-body" id="lightboxBody">
+      <img id="lightboxImg" src="" alt="Full preview" />
+    </div>
+  </div>
 
   <!-- LONG-PRESS ACTION SHEET MODAL -->
   <div id="messageActionModal" class="modal-backdrop hidden">
@@ -267,6 +273,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=2.00"></script>
+  <script type="module" src="app.js?v=2.10"></script>
 </body>
 </html>
