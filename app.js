@@ -32,6 +32,8 @@ const chatRecipientName = document.getElementById("chatRecipientName");
 
 // Preferences & Debug
 const themeToggleBtn = document.getElementById("themeToggleBtn");
+const simplifyToggleBtn = document.getElementById("simplifyToggleBtn");
+const testChimeBtn = document.getElementById("testChimeBtn");
 const forceUpdateBtn = document.getElementById("forceUpdateBtn");
 const wipeAppCacheBtn = document.getElementById("wipeAppCacheBtn");
 const clearLogsBtn = document.getElementById("clearLogsBtn");
@@ -90,7 +92,77 @@ const markedSeenCache = new Set();
 let activeSelectedMessage = null;
 
 // ==========================================
-// 4. THEME CONTROLLER
+// 4. SYNTHESIZED DOORBELL AUDIO CHIME (v2.00)
+// ==========================================
+function playDoorbellChime() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+
+    function playTone(freq, startTime, duration) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      gain.gain.setValueAtTime(0.28, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    }
+
+    const now = ctx.currentTime;
+    playTone(659.25, now, 0.7);        // Note E5 (Ding)
+    playTone(523.25, now + 0.35, 0.9); // Note C5 (Dong)
+  } catch (e) {
+    console.warn("Audio chime failed", e);
+  }
+}
+
+if (testChimeBtn) {
+  testChimeBtn.onclick = () => {
+    playDoorbellChime();
+    logSystem("Doorbell chime tested");
+  };
+}
+
+// ==========================================
+// 5. 👓 SIMPLIFY MODE CONTROLLER (v2.00)
+// ==========================================
+function updateSimplifyUI(isSimplify) {
+  if (isSimplify) {
+    document.documentElement.setAttribute("data-simplify", "true");
+    localStorage.setItem("summon_simplify", "true");
+    if (simplifyToggleBtn) {
+      simplifyToggleBtn.textContent = "Turn OFF";
+      simplifyToggleBtn.className = "pill-btn danger";
+    }
+  } else {
+    document.documentElement.removeAttribute("data-simplify");
+    localStorage.setItem("summon_simplify", "false");
+    if (simplifyToggleBtn) {
+      simplifyToggleBtn.textContent = "Turn ON";
+      simplifyToggleBtn.className = "pill-btn primary-solid";
+    }
+  }
+}
+
+if (simplifyToggleBtn) {
+  simplifyToggleBtn.onclick = () => {
+    const currentlyOn = document.documentElement.getAttribute("data-simplify") === "true";
+    updateSimplifyUI(!currentlyOn);
+    logSystem(`Simplify mode set to: ${!currentlyOn}`);
+  };
+}
+updateSimplifyUI(localStorage.getItem("summon_simplify") === "true");
+
+// ==========================================
+// 6. THEME CONTROLLER
 // ==========================================
 function updateThemeUI(theme) {
   document.documentElement.setAttribute("data-theme", theme);
@@ -111,7 +183,7 @@ if (themeToggleBtn) {
 updateThemeUI(document.documentElement.getAttribute("data-theme") || "light");
 
 // ==========================================
-// 5. LOGGING & HELPERS
+// 7. LOGGING & HELPERS
 // ==========================================
 function logSystem(msg, type = "info") {
   const timestamp = new Date().toLocaleTimeString();
@@ -147,10 +219,10 @@ function getTargetTopic(recipient, isTest = false) {
 }
 
 // ==========================================
-// 6. CACHE & SERVICE WORKER
+// 8. CACHE & SERVICE WORKER REFRESH
 // ==========================================
 async function cleanAppCacheAndReload() {
-  logSystem("Purging cache for v1.90...", "warn");
+  logSystem("Purging cache for v2.00...", "warn");
   if ('caches' in window) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((name) => caches.delete(name)));
@@ -168,13 +240,13 @@ if (forceUpdateBtn) forceUpdateBtn.onclick = cleanAppCacheAndReload;
 if (wipeAppCacheBtn) wipeAppCacheBtn.onclick = cleanAppCacheAndReload;
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js?v=1.90').then((reg) => {
+  navigator.serviceWorker.register('./sw.js?v=2.00').then((reg) => {
     reg.update();
     reg.onupdatefound = () => {
       const installingWorker = reg.installing;
       installingWorker.onstatechange = () => {
         if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          logSystem("v1.90 downloaded! Refreshing...", "info");
+          logSystem("v2.00 installed! Refreshing...", "info");
           setTimeout(() => window.location.reload(), 800);
         }
       };
@@ -183,7 +255,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ==========================================
-// 7. USER & RECIPIENT SWITCHING
+// 9. RECIPIENT & PROFILE CONTROLLERS
 // ==========================================
 function updateUIForRecipient() {
   if (summonTitle) summonTitle.textContent = `Summon ${currentRecipient}`;
@@ -227,9 +299,7 @@ function setUser(username) {
   renderChatMessages();
 }
 
-// ==========================================
-// 8. TACTILE 3-WAY SEGMENTED CONTROL
-// ==========================================
+// Segmented Urgency Buttons
 if (prioritySegmented) {
   prioritySegmented.querySelectorAll(".segment-btn").forEach(btn => {
     btn.onclick = () => {
@@ -240,9 +310,7 @@ if (prioritySegmented) {
   });
 }
 
-// ==========================================
-// 9. NATIVE BOTTOM NAVIGATION
-// ==========================================
+// Bottom Nav Navigation
 document.querySelectorAll(".nav-item").forEach(item => {
   item.onclick = () => {
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
@@ -363,7 +431,34 @@ function bindLongPressListener(element, msgData) {
 }
 
 // ==========================================
-// 11. CHAT RENDERING
+// 11. 1-TAP QUICK REPLIES CONTROLLER (v2.00)
+// ==========================================
+document.querySelectorAll(".quick-reply-btn").forEach(btn => {
+  btn.onclick = async () => {
+    const replyText = btn.dataset.reply;
+    sendNtfyNotification(`${currentUser}: ${replyText}`, "default", currentRecipient).catch(() => {});
+
+    try {
+      await addDoc(collection(db, "messages"), {
+        roomId: getRoomId(currentUser, currentRecipient),
+        sender: currentUser,
+        recipient: currentRecipient,
+        text: replyText,
+        imageUrl: null,
+        timestamp: Date.now(),
+        reactions: {},
+        seenBy: [currentUser],
+        edited: false
+      });
+      logSystem(`Sent quick reply: "${replyText}"`);
+    } catch (err) {
+      logSystem(`Quick reply error: ${err.message}`, "error");
+    }
+  };
+});
+
+// ==========================================
+// 12. CHAT RENDERING
 // ==========================================
 function renderChatMessages() {
   if (!messagesList) return;
@@ -462,7 +557,7 @@ function renderChatMessages() {
 }
 
 // ==========================================
-// 12. ALERTS & PUSH NOTIFICATIONS
+// 13. ALERTS & PUSH NOTIFICATIONS
 // ==========================================
 if (switchBtn) {
   switchBtn.onclick = () => profileModal.classList.remove("hidden");
@@ -515,6 +610,9 @@ if (sendAlertBtn) {
 
     sendAlertBtn.disabled = true;
     alertStatus.textContent = `Delivering alert to ${currentRecipient}...`;
+
+    // Play chime sound
+    playDoorbellChime();
 
     sendNtfyNotification(text, alertPriority.value, currentRecipient).catch(err => logSystem(`ntfy err: ${err.message}`, "error"));
 
@@ -644,7 +742,7 @@ if (clearLogsBtn) {
 }
 
 // ==========================================
-// 13. FIRESTORE REAL-TIME SYNC
+// 14. FIRESTORE REAL-TIME SYNC
 // ==========================================
 const messagesQuery = query(collection(db, "messages"));
 onSnapshot(messagesQuery, (snapshot) => {
@@ -661,7 +759,7 @@ onSnapshot(messagesQuery, (snapshot) => {
 });
 
 // ==========================================
-// 14. COMPREHENSIVE BUG CHECK SUITE
+// 15. COMPREHENSIVE BUG CHECK SUITE
 // ==========================================
 async function runComprehensiveBugCheck() {
   runBugCheckBtn.disabled = true;
@@ -732,7 +830,7 @@ async function runComprehensiveBugCheck() {
   const allPassed = failed === 0;
   summary.className = `test-summary ${allPassed ? 'all-pass' : 'has-fail'}`;
   summary.textContent = allPassed 
-    ? `🎉 All tests passed! System healthy.` 
+    ? `🎉 All tests passed! v2.00 healthy.` 
     : `⚠️ Diagnostic report: ${passed} passed, ${failed} failed.`;
   bugCheckResults.prepend(summary);
 
@@ -744,5 +842,5 @@ if (runBugCheckBtn) {
   runBugCheckBtn.onclick = runComprehensiveBugCheck;
 }
 
-// Initialize
+// Boot up
 setUser(currentUser);
