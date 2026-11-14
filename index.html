@@ -5,20 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Summon & Chat</title>
   <link rel="manifest" href="manifest.json" />
-  <meta name="theme-color" content="#4f46e5" />
-  <!-- Theme bootstrapper -->
+  <meta name="theme-color" content="#111724" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Immediate Theme & Simplify Mode Bootstrapper -->
   <script>
     (function() {
       const savedTheme = localStorage.getItem('summon_theme') || 
         (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.setAttribute('data-theme', savedTheme);
+      if (localStorage.getItem('summon_simplify') === 'true') {
+        document.documentElement.setAttribute('data-simplify', 'true');
+      }
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=1.90" />
+
+  <link rel="stylesheet" href="style.css?v=2.00" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
 </head>
 <body>
-  <!-- Consolidated Top Bar: Identity & Active Recipient -->
+  <!-- Solid, Notch-Safe Top Header -->
   <header class="app-header">
     <button id="switchUserBtn" class="identity-badge" title="Switch your profile">
       <span class="status-dot"></span>
@@ -52,7 +59,7 @@
           <input type="hidden" id="alertPriority" value="high" />
         </div>
 
-        <!-- Quick 1-Tap Scenario Chips -->
+        <!-- Quick Presets -->
         <div class="chips-label">Quick Presets:</div>
         <div class="preset-chips">
           <button class="chip" data-msg="Dinner is ready! Come downstairs 🍲">🍲 Dinner</button>
@@ -85,6 +92,14 @@
           <div class="chat-placeholder">Loading conversation...</div>
         </div>
 
+        <!-- 1-Tap Quick Responses Bar for Easy Messaging -->
+        <div class="quick-replies-bar">
+          <button class="quick-reply-btn" data-reply="On my way! 🏃‍♀️">🏃 On my way!</button>
+          <button class="quick-reply-btn" data-reply="Give me 5 mins ⏳">⏳ 5 mins</button>
+          <button class="quick-reply-btn" data-reply="Coming downstairs now! 🍲">🍲 Coming now!</button>
+          <button class="quick-reply-btn" data-reply="Can't right now ❌">❌ Can't now</button>
+        </div>
+
         <!-- Image Preview Bar -->
         <div id="imagePreviewContainer" class="preview-bar hidden">
           <img id="imagePreview" src="" alt="preview" />
@@ -103,20 +118,31 @@
       </div>
     </section>
 
-    <!-- VIEW 3: SYSTEM & DEBUG -->
+    <!-- VIEW 3: SYSTEM & ACCESSIBILITY -->
     <section id="debugTab" class="view-panel">
-      <!-- Quick Settings Card -->
+      <!-- Accessibility & Settings Card -->
       <div class="card" style="margin-bottom: 12px;">
-        <h3 class="card-title">Preferences & Version</h3>
+        <h3 class="card-title">Accessibility & Display</h3>
         <div class="settings-list">
+          <div class="setting-item">
+            <div>
+              <span class="setting-name">👓 Simplify Mode</span>
+              <div class="setting-hint">Larger text & clean interface for easier reading</div>
+            </div>
+            <button id="simplifyToggleBtn" class="pill-btn primary-solid">Turn ON</button>
+          </div>
           <div class="setting-item">
             <span class="setting-name">App Theme</span>
             <button id="themeToggleBtn" class="pill-btn secondary">🌙 Switch Theme</button>
           </div>
           <div class="setting-item">
+            <span class="setting-name">Doorbell Audio</span>
+            <button id="testChimeBtn" class="pill-btn secondary">🔔 Test Chime</button>
+          </div>
+          <div class="setting-item">
             <span class="setting-name">App Version</span>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <span class="version-tag">v1.90</span>
+              <span class="version-tag">v2.00</span>
               <button id="forceUpdateBtn" class="pill-btn secondary">⟳ Update</button>
             </div>
           </div>
@@ -132,18 +158,17 @@
 
       <!-- Changelog Card -->
       <div class="card" style="margin-bottom: 12px;">
-        <h3 class="card-title">Changelog</h3>
+        <h3 class="card-title">Version 2.00 Milestones</h3>
         <div class="changelog-container">
           <div class="changelog-entry current">
             <div class="changelog-header">
-              <strong>v1.90</strong> <span class="badge-current">Latest</span>
+              <strong>v2.00</strong> <span class="badge-current">Major Release</span>
             </div>
             <ul>
-              <li>Native bottom navigation bar for mobile thumb ergonomics.</li>
-              <li>Consolidated compact header saving 60% vertical screen space.</li>
-              <li>Tactile 3-way segmented urgency slider (Normal, Loud, Urgent).</li>
-              <li>iMessage/WhatsApp-style chat bubbles with micro-animations.</li>
-              <li>OLED dark mode and refined typography.</li>
+              <li><strong>Fixed iPhone status bar blur:</strong> Notch-safe header with zero visual overlap.</li>
+              <li><strong>👓 Simplify Mode:</strong> High-contrast large text and clean layout for low vision.</li>
+              <li><strong>1-Tap Quick Replies:</strong> Answer summons without typing.</li>
+              <li><strong>Synthesized Doorbell Chime:</strong> Audio chime feedback on summons.</li>
             </ul>
           </div>
         </div>
@@ -184,7 +209,6 @@
     <div class="action-sheet" id="actionSheetCard">
       <div class="sheet-grabber"></div>
 
-      <!-- Quick Reactions Row -->
       <div class="reaction-strip">
         <button class="react-strip-btn" data-emoji="👍">👍</button>
         <button class="react-strip-btn" data-emoji="❤️">❤️</button>
@@ -194,7 +218,6 @@
         <button class="react-strip-btn" data-emoji="🙏">🙏</button>
       </div>
 
-      <!-- Contextual Actions -->
       <div class="action-buttons-list">
         <button id="actionCopyBtn" class="action-sheet-btn">
           <span>📋</span> Copy Text
@@ -244,6 +267,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=1.90"></script>
+  <script type="module" src="app.js?v=2.00"></script>
 </body>
 </html>
